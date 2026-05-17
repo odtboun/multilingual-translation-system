@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Boarding — Row announcement",
+    "text": "15 ile 25. sıralar arasındaki yolcular biniş yapabilir",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "BOARDING"},
+    "expected_contains": ["rows", "15", "25", "board"],
+    "expected_not_contains": ["boarding card"]
+  },
+  {
+    "name": "Boarding — Boarding pass",
+    "text": "Biniş kartınızı hazırlayın lütfen",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "BOARDING"},
+    "expected_contains": ["boarding pass"],
+    "expected_not_contains": ["boarding card", "boarding ticket"]
+  },
+  {
+    "name": "Boarding — Final call",
+    "text": "Son çağrı, kapı kapanıyor",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "BOARDING"},
+    "expected_contains": ["final call"],
+    "expected_not_contains": ["last call"]
+  },
+  {
+    "name": "Check-in — Excess baggage",
+    "text": "Fazla bagajınız var, ek ücret ödemeniz gerekiyor",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "CHECK_IN"},
+    "expected_contains": ["excess baggage"],
+    "expected_not_contains": ["extra luggage"]
+  },
+  {
+    "name": "Security — Electronics in tray",
+    "text": "Lütfen elektronik cihazlarınızı tepsiye koyun",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "SECURITY"},
+    "expected_contains": ["tray"],
+    "expected_not_contains": ["bin"]
+  },
+  {
+    "name": "Transfer — Connecting flight",
+    "text": "Bağlantı uçuşunuz B04 kapısından kalkacaktır",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "TRANSFER"},
+    "expected_contains": ["connecting flight", "B04"],
+    "expected_not_contains": ["next flight"]
+  },
+  {
+    "name": "Irregular — Cancellation",
+    "text": "Uçuşunuz iptal edilmiştir, lütfen aktarma masasına gidin",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "IRREGULAR"},
+    "expected_contains": ["cancellation"],
+    "expected_not_contains": ["cancelled flight"]
+  },
+  {
+    "name": "Directions — Elevator",
+    "text": "Asansörle üst kata çıkın, solda güvenlik kontrolü var",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "DIRECTIONS"},
+    "expected_contains": ["elevator"],
+    "expected_not_contains": ["lift"]
+  },
+  {
+    "name": "Gate change",
+    "text": "Kapınız A12'den B04'e değiştirilmiştir",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "GATE"},
+    "expected_contains": ["gate", "A12", "B04"],
+    "expected_not_contains": ["door"]
+  },
+  {
+    "name": "Baggage — Lost baggage",
+    "text": "Kayıp bagaj başvurusu için lütfen 3 numaralı bandı kontrol edin",
+    "source_lang": "tr",
+    "target_lang": "en",
+    "context": {"touchpoint": "BAGGAGE"},
+    "expected_contains": ["lost baggage"],
+    "expected_not_contains": ["missing luggage", "lost luggage"]
+  }
+]
