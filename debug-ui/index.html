@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviation Translation — Debug Console</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <h1 class="logo">✈ ATS <span class="logo-sub">Debug Console</span></h1>
+        </div>
+        <div class="header-right">
+            <span class="status-dot" id="statusDot"></span>
+            <span class="status-text" id="statusText">Connecting...</span>
+        </div>
+    </header>
+
+    <nav class="tabs">
+        <button class="tab active" data-tab="translate">Translation</button>
+        <button class="tab" data-tab="batch">Batch Test</button>
+        <button class="tab" data-tab="compare">Context Compare</button>
+        <button class="tab" data-tab="glossary">Glossary</button>
+        <button class="tab" data-tab="conversation">Conversation</button>
+    </nav>
+
+    <!-- ============ TRANSLATE TAB ============ -->
+    <div class="tab-content active" id="tab-translate">
+        <div class="panel-row">
+            <div class="panel input-panel">
+                <h2 class="panel-title">Input</h2>
+                <textarea id="sourceText" placeholder="Enter text to translate... (e.g., 15 ile 25. sıralar arasındaki yolcular biniş yapabilir)" rows="4"></textarea>
+
+                <div class="control-row">
+                    <div class="control-group">
+                        <label>From</label>
+                        <select id="sourceLang">
+                            <option value="tr" selected>Turkish</option>
+                            <option value="en">English</option>
+                            <option value="ar">Arabic</option>
+                            <option value="de">German</option>
+                            <option value="fr">French</option>
+                            <option value="ru">Russian</option>
+                            <option value="zh">Chinese</option>
+                            <option value="es">Spanish</option>
+                            <option value="ja">Japanese</option>
+                        </select>
+                    </div>
+                    <button class="swap-btn" id="swapLangs" title="Swap languages">⇄</button>
+                    <div class="control-group">
+                        <label>To</label>
+                        <select id="targetLang">
+                            <option value="en" selected>English</option>
+                            <option value="tr">Turkish</option>
+                            <option value="ar">Arabic</option>
+                            <option value="de">German</option>
+                            <option value="fr">French</option>
+                            <option value="ru">Russian</option>
+                            <option value="zh">Chinese</option>
+                            <option value="es">Spanish</option>
+                            <option value="ja">Japanese</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-group">
+                        <label>Touchpoint</label>
+                        <select id="touchpoint">
+                            <option value="GENERAL">General</option>
+                            <option value="CHECK_IN">Check-In</option>
+                            <option value="SECURITY">Security</option>
+                            <option value="PASSPORT">Passport Control</option>
+                            <option value="BOARDING" selected>Boarding Gate</option>
+                            <option value="GATE">Gate Area</option>
+                            <option value="TRANSFER">Transfer Desk</option>
+                            <option value="BAGGAGE">Baggage Claim</option>
+                            <option value="DELAY">Delay</option>
+                            <option value="IRREGULAR">Irregular Ops</option>
+                            <option value="DIRECTIONS">Directions</option>
+                            <option value="EMERGENCY">Emergency</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Flight</label>
+                        <input type="text" id="flightNum" placeholder="TK1234" value="TK1234">
+                    </div>
+                    <div class="control-group">
+                        <label>Gate</label>
+                        <input type="text" id="gateNum" placeholder="A12" value="A12">
+                    </div>
+                    <div class="control-group">
+                        <label>Destination</label>
+                        <input type="text" id="destination" placeholder="London" value="London">
+                    </div>
+                </div>
+
+                <button class="translate-btn" id="translateBtn">
+                    <span class="btn-text">Translate</span>
+                    <span class="btn-loading" style="display:none">⟳ Translating...</span>
+                </button>
+            </div>
+
+            <div class="panel result-panel">
+                <h2 class="panel-title">Result</h2>
+                <div class="result-box" id="resultBox">
+                    <p class="placeholder-text">Translation will appear here</p>
+                </div>
+                <div class="meta-grid" id="metaGrid" style="display:none">
+                    <div class="meta-item">
+                        <span class="meta-label">Latency</span>
+                        <span class="meta-value" id="metaLatency">—</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Model</span>
+                        <span class="meta-value" id="metaModel">—</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Terms Injected</span>
+                        <span class="meta-value" id="metaTerms">—</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Guard Corrections</span>
+                        <span class="meta-value" id="metaGuard">—</span>
+                    </div>
+                </div>
+                <div class="corrections-panel" id="correctionsPanel" style="display:none">
+                    <h3>Guard Corrections</h3>
+                    <div id="correctionsList"></div>
+                </div>
+                <div class="raw-panel" id="rawPanel" style="display:none">
+                    <h3>Raw LLM Output (before guard)</h3>
+                    <pre id="rawOutput"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ BATCH TEST TAB ============ -->
+    <div class="tab-content" id="tab-batch">
+        <div class="panel">
+            <h2 class="panel-title">Batch Translation Test</h2>
+            <p class="panel-desc">Run multiple test phrases and check for terminology compliance.</p>
+
+            <div class="control-row">
+                <button class="preset-btn" data-preset="boarding">Boarding Phrases</button>
+                <button class="preset-btn" data-preset="checkin">Check-In Phrases</button>
+                <button class="preset-btn" data-preset="security">Security Phrases</button>
+                <button class="preset-btn" data-preset="irregular">Irregular Ops</button>
+                <button class="preset-btn" data-preset="all">All Presets</button>
+            </div>
+
+            <textarea id="batchInput" rows="10" placeholder='Paste JSON array of test items or load a preset...
+Example:
+[
+  {
+    "text": "Biniş kartınızı hazırlayın",
+    "expected_contains": ["boarding pass"],
+    "expected_not_contains": ["boarding card"]
+  }
+]'></textarea>
+            <button class="translate-btn" id="batchRunBtn">
+                <span class="btn-text">Run Batch Test</span>
+                <span class="btn-loading" style="display:none">⟳ Running...</span>
+            </button>
+
+            <div class="batch-summary" id="batchSummary" style="display:none"></div>
+            <div class="batch-results" id="batchResults"></div>
+        </div>
+    </div>
+
+    <!-- ============ CONTEXT COMPARE TAB ============ -->
+    <div class="tab-content" id="tab-compare">
+        <div class="panel">
+            <h2 class="panel-title">Context Comparison</h2>
+            <p class="panel-desc">See how the same phrase translates differently across touchpoints.</p>
+
+            <textarea id="compareText" rows="2" placeholder='e.g., Buradan devam edin'></textarea>
+            <button class="translate-btn" id="compareBtn">
+                <span class="btn-text">Compare Across Contexts</span>
+                <span class="btn-loading" style="display:none">⟳ Comparing...</span>
+            </button>
+
+            <div class="compare-results" id="compareResults"></div>
+        </div>
+    </div>
+
+    <!-- ============ GLOSSARY TAB ============ -->
+    <div class="tab-content" id="tab-glossary">
+        <div class="panel">
+            <h2 class="panel-title">Aviation Glossary Browser</h2>
+            <div class="control-row">
+                <input type="text" id="glossarySearch" placeholder="Search terms... (e.g., boarding, bagaj, biniş)" class="search-input">
+                <select id="glossaryFilter">
+                    <option value="">All Contexts</option>
+                    <option value="CHECK_IN">Check-In</option>
+                    <option value="SECURITY">Security</option>
+                    <option value="PASSPORT">Passport</option>
+                    <option value="BOARDING">Boarding</option>
+                    <option value="GATE">Gate</option>
+                    <option value="TRANSFER">Transfer</option>
+                    <option value="BAGGAGE">Baggage</option>
+                    <option value="EMERGENCY">Emergency</option>
+                </select>
+            </div>
+            <div class="glossary-stats" id="glossaryStats"></div>
+            <div class="glossary-table" id="glossaryTable"></div>
+        </div>
+    </div>
+
+    <!-- ============ CONVERSATION TAB ============ -->
+    <div class="tab-content" id="tab-conversation">
+        <div class="panel">
+            <h2 class="panel-title">Multi-Turn Conversation</h2>
+            <p class="panel-desc">Test context persistence across multiple exchanges.</p>
+
+            <div class="control-row">
+                <div class="control-group">
+                    <label>Touchpoint</label>
+                    <select id="convTouchpoint">
+                        <option value="BOARDING" selected>Boarding Gate</option>
+                        <option value="CHECK_IN">Check-In</option>
+                        <option value="TRANSFER">Transfer</option>
+                        <option value="BAGGAGE">Baggage Claim</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Flight</label>
+                    <input type="text" id="convFlight" placeholder="TK1234" value="TK1234">
+                </div>
+                <button class="reset-btn" id="convResetBtn">Reset Session</button>
+            </div>
+
+            <div class="conversation-log" id="convLog"></div>
+
+            <div class="conv-input-row">
+                <input type="text" id="convInput" placeholder="Type a message in Turkish..." class="conv-input">
+                <button class="translate-btn conv-send" id="convSendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
