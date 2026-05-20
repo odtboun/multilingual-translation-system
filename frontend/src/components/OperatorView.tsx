@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
-import { Mic, Send, Volume2, Info, Loader2 } from 'lucide-react';
+import { Mic, Send, Volume2, Info, Loader2, ArrowLeftRight, Keyboard, Mic as MicIcon } from 'lucide-react';
 
 const API_BASE = 'http://localhost:8000/api';
 
 export default function OperatorView() {
+  const [mode, setMode] = useState<'voice' | 'text'>('voice');
   const [text, setText] = useState('');
   const [translation, setTranslation] = useState('');
   const [notes, setNotes] = useState<string[]>([]);
@@ -11,8 +12,13 @@ export default function OperatorView() {
   const [recording, setRecording] = useState(false);
   
   const [touchpoint, setTouchpoint] = useState('GENERAL');
-  const [sourceLang, setSourceLang] = useState('tr');
-  const [targetLang, setTargetLang] = useState('en');
+  
+  // Language Direction Toggle State
+  // true = TR -> EN, false = EN -> TR
+  const [isTrToEn, setIsTrToEn] = useState(true);
+
+  const sourceLang = isTrToEn ? 'tr' : 'en';
+  const targetLang = isTrToEn ? 'en' : 'tr';
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -38,7 +44,6 @@ export default function OperatorView() {
       setTranslation(data.translation);
       if (data.notes) setNotes(data.notes);
       
-      // Auto-play TTS if translating TO English
       if (targetLang === 'en' && data.translation) {
         playTTS(data.translation);
       }
@@ -73,6 +78,10 @@ export default function OperatorView() {
       setRecording(false);
     } else {
       try {
+        setTranslation('');
+        setNotes([]);
+        setText('');
+        
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorderRef.current = mediaRecorder;
@@ -141,69 +150,106 @@ export default function OperatorView() {
 
   return (
     <div className="operator-view">
-      <div className="glass-panel context-bar">
-        <select value={touchpoint} onChange={e => setTouchpoint(e.target.value)}>
-          <option value="GENERAL">General Aviation</option>
-          <option value="CHECK_IN">Check-in Counter</option>
-          <option value="SECURITY">Security Screening</option>
-          <option value="BOARDING">Boarding Gate</option>
-          <option value="PASSPORT">Passport Control</option>
-          <option value="BAGGAGE">Baggage Claim</option>
-          <option value="TRANSFER">Transfer Desk</option>
-          <option value="DIRECTIONS">Directions</option>
-        </select>
-        
-        <select value={sourceLang} onChange={e => setSourceLang(e.target.value)}>
-          <option value="tr">Turkish</option>
-          <option value="en">English</option>
-        </select>
-        <span>→</span>
-        <select value={targetLang} onChange={e => setTargetLang(e.target.value)}>
-          <option value="en">English</option>
-          <option value="tr">Turkish</option>
-        </select>
-      </div>
-
-      <div className="glass-panel translation-area">
-        <div className="input-section">
-          <textarea 
-            placeholder="Type or speak passenger input here..." 
-            value={text}
-            onChange={e => setText(e.target.value)}
-            disabled={loading || recording}
-          />
-          <div className="mic-button-wrapper">
-            <button 
-              className={`btn-icon ${recording ? 'active' : ''}`}
-              onClick={toggleRecording}
-              disabled={loading}
-              title="Hold or click to speak"
+      
+      {/* Top Control Bar */}
+      <div className="panel context-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Location:</span>
+            <select 
+                value={touchpoint} 
+                onChange={e => setTouchpoint(e.target.value)}
+                style={{ border: 'none', background: 'var(--bg-color)', fontWeight: 600, color: 'var(--accent-color)' }}
             >
-              {recording ? <Loader2 className="animate-spin" /> : <Mic />}
-            </button>
-          </div>
+                <option value="GENERAL">General Aviation</option>
+                <option value="CHECK_IN">Check-in Counter</option>
+                <option value="SECURITY">Security Screening</option>
+                <option value="BOARDING">Boarding Gate</option>
+                <option value="PASSPORT">Passport Control</option>
+                <option value="BAGGAGE">Baggage Claim</option>
+                <option value="TRANSFER">Transfer Desk</option>
+                <option value="DIRECTIONS">Directions</option>
+            </select>
         </div>
 
-        <div className="context-bar" style={{ justifyContent: 'flex-end', borderTop: '1px solid var(--panel-border)' }}>
-            <button className="btn-primary" onClick={handleTranslate} disabled={loading || !text.trim()}>
-                {loading ? <Loader2 className="animate-spin" /> : <Send size={18} />}
-                Translate
+        <div className="lang-toggle-container">
+            <span className={`lang-label ${isTrToEn ? '' : 'secondary'}`}>Turkish</span>
+            <button 
+                className="btn-icon" 
+                onClick={() => setIsTrToEn(!isTrToEn)}
+                title="Swap Direction"
+            >
+                <ArrowLeftRight size={18} />
             </button>
+            <span className={`lang-label ${!isTrToEn ? '' : 'secondary'}`}>English</span>
         </div>
       </div>
 
-      {(translation || loading) && (
-        <div className="glass-panel output-section">
+      {/* Main Workspace */}
+      <div className="panel workspace-area">
+        
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <div className="segmented-control">
+                <button 
+                    className={mode === 'voice' ? 'active' : ''} 
+                    onClick={() => setMode('voice')}
+                >
+                    <MicIcon size={16} /> Voice Mode
+                </button>
+                <button 
+                    className={mode === 'text' ? 'active' : ''} 
+                    onClick={() => setMode('text')}
+                >
+                    <Keyboard size={16} /> Text Mode
+                </button>
+            </div>
+        </div>
+
+        {mode === 'voice' ? (
+            <div className="voice-mode-container">
+                <button 
+                    className={`btn-mic-large ${recording ? 'recording' : ''}`}
+                    onClick={toggleRecording}
+                    disabled={loading && !recording}
+                    title="Click to start/stop recording"
+                >
+                    {loading && !recording ? <Loader2 size={40} className="animate-spin" /> : <Mic size={48} />}
+                </button>
+                
+                <div className="transcription-preview">
+                    {recording ? "Listening..." : text ? `"${text}"` : "Tap microphone to speak"}
+                </div>
+            </div>
+        ) : (
+            <div className="text-mode-container">
+                <textarea 
+                    placeholder={`Type ${isTrToEn ? 'Turkish' : 'English'} input here...`}
+                    value={text}
+                    onChange={e => setText(e.target.value)}
+                    disabled={loading || recording}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button className="btn-primary" onClick={handleTranslate} disabled={loading || !text.trim()}>
+                        {loading ? <Loader2 className="animate-spin" /> : <Send size={18} />}
+                        Translate
+                    </button>
+                </div>
+            </div>
+        )}
+      </div>
+
+      {/* Output Section */}
+      {(translation || (loading && text && mode === 'text')) && (
+        <div className="panel output-section">
           {loading && !translation ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-secondary)' }}>
-                <Loader2 className="animate-spin" /> Processing...
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--accent-color)' }}>
+                <Loader2 className="animate-spin" /> Processing translation...
             </div>
           ) : (
             <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="output-text">{translation}</div>
                     <button className="btn-icon" onClick={() => playTTS(translation)} title="Play Audio">
-                        <Volume2 size={20} />
+                        <Volume2 size={24} className="text-accent" />
                     </button>
                 </div>
                 
