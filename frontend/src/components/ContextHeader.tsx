@@ -14,6 +14,7 @@ interface ContextHeaderProps {
 export function ContextHeader({ touchpoint, onTouchpointChange, flight, sourceLang, targetLang, onSwapLanguages }: ContextHeaderProps) {
   const current = TOUCHPOINTS.find(t => t.value === touchpoint) || TOUCHPOINTS[10];
   const isEmergency = touchpoint === 'EMERGENCY';
+  const isAuto = sourceLang === 'auto';
 
   return (
     <div className={`px-6 py-3 border-b border-border ${isEmergency ? 'bg-danger-bg border-danger/20' : 'bg-surface'} transition-colors duration-300`}>
@@ -47,9 +48,18 @@ export function ContextHeader({ touchpoint, onTouchpointChange, flight, sourceLa
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-sm font-medium ${sourceLang === 'tr' ? 'text-text-primary' : 'text-text-secondary'}`}>{LANGUAGE_NAMES[sourceLang]}</span>
-          <button onClick={onSwapLanguages} className="p-1.5 rounded-md hover:bg-subtle transition-colors" title="Swap"><ArrowRightLeft size={16} className="text-text-tertiary" /></button>
-          <span className="text-sm font-semibold text-text-primary">{LANGUAGE_NAMES[targetLang]}</span>
+          {isAuto ? (
+            <span className="text-sm font-medium text-aviation flex items-center gap-1.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-aviation animate-pulse" />
+              Auto-detect
+            </span>
+          ) : (
+            <>
+              <span className={`text-sm font-medium ${sourceLang === 'tr' ? 'text-text-primary' : 'text-text-secondary'}`}>{LANGUAGE_NAMES[sourceLang] || sourceLang}</span>
+              <button onClick={onSwapLanguages} className="p-1.5 rounded-md hover:bg-subtle transition-colors" title="Swap"><ArrowRightLeft size={16} className="text-text-tertiary" /></button>
+              <span className="text-sm font-semibold text-text-primary">{LANGUAGE_NAMES[targetLang] || targetLang}</span>
+            </>
+          )}
         </div>
       </div>
     </div>

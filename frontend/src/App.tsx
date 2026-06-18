@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shell } from './components/Shell';
 import { OperatorTerminal } from './components/OperatorTerminal';
+import { ConversationView } from './components/ConversationView';
 import { DashboardView } from './components/DashboardView';
 import { DemoWalkthrough } from './components/DemoWalkthrough';
 import './index.css';
 
-type View = 'operator' | 'dashboard' | 'demo';
-const LABELS: Record<View, string> = { operator: 'Terminal', dashboard: 'Dashboard', demo: 'Demo' };
+type View = 'conversation' | 'operator' | 'dashboard' | 'demo';
+const LABELS: Record<View, string> = { conversation: 'Conversation', operator: 'One-Way', dashboard: 'Dashboard', demo: 'Demo' };
 
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -16,7 +17,7 @@ const pageVariants = {
 };
 
 function App() {
-  const [view, setView] = useState<View>('operator');
+  const [view, setView] = useState<View>('conversation');
   const [metrics, setMetrics] = useState({ count: 0, latency: 0, guardRate: '0%' });
 
   return (
@@ -24,13 +25,14 @@ function App() {
       <div className="absolute bottom-12 left-6 z-50 flex gap-1 bg-surface rounded-lg border border-border shadow-dropdown p-1">
         {(Object.keys(LABELS) as View[]).map((key) => (
           <button key={key} onClick={() => setView(key)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 ${view === key ? 'bg-aviation text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-subtle'}`}>
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 whitespace-nowrap ${view === key ? 'bg-aviation text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-subtle'}`}>
             {LABELS[key]}
           </button>
         ))}
       </div>
       <AnimatePresence mode="wait">
         <motion.div key={view} variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }} className="h-full">
+          {view === 'conversation' && <ConversationView onMetrics={setMetrics} />}
           {view === 'operator' && <OperatorTerminal onMetrics={setMetrics} />}
           {view === 'dashboard' && <DashboardView />}
           {view === 'demo' && <DemoWalkthrough />}
