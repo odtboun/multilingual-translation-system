@@ -135,17 +135,6 @@ export function ConversationView({ onMetrics }: { onMetrics: (m: { count: number
         )}
       </div>
 
-      {/* Language direction indicator */}
-      {messages.length > 0 && (
-        <div className="px-6 py-1.5 flex items-center justify-center gap-2 text-[10px] text-text-tertiary">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-navy" />Employee = Turkish</span>
-          <span className="text-border">·</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-aviation" />Passenger = English</span>
-          <span className="text-border">·</span>
-          <span>Auto-detection active</span>
-        </div>
-      )}
-
       {/* Input area */}
       <div className="px-6 py-3 border-t border-border bg-surface">
         <div className="max-w-2xl mx-auto">

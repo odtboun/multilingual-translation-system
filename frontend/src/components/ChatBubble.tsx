@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Plane, User, Volume2, Copy } from 'lucide-react';
+import { Volume2, Copy } from 'lucide-react';
 import { GuardDiff } from './GuardDiff';
 import type { TranslationResult } from '../types';
 
@@ -23,12 +23,7 @@ export function ChatBubble({ speaker, sourceText, result, loading, onPlayTTS }: 
       transition={{ duration: 0.3 }}
       className={`flex flex-col max-w-[80%] ${isEmployee ? 'self-start mr-auto' : 'self-end ml-auto'}`}
     >
-      {/* Speaker label — ultra minimal */}
-      <div className={`flex items-center gap-1 mb-0.5 ${isEmployee ? '' : 'justify-end'}`}>
-        {isEmployee ? <Plane size={10} className="text-navy/40" /> : <User size={10} className="text-aviation/40" />}
-        <span className="text-[9px] font-medium text-text-tertiary uppercase tracking-widest">{isEmployee ? 'Employee' : 'Passenger'}</span>
-      </div>
-
+      {/* No speaker label — left/right alignment is enough */}
       {/* BUBBLE: Translation first (hero), source second (footnote) */}
       <div className={`
         relative rounded-2xl overflow-hidden border
