@@ -1,100 +1,71 @@
-import { Activity, Globe, ShieldAlert, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Activity, ShieldAlert, Zap, TrendingUp, Globe, Clock } from 'lucide-react';
+import { Card } from './ui/Card';
+import { Skeleton } from './ui/Skeleton';
 
-export default function DashboardView() {
+interface Metrics { total_translations: number; guard_interventions: number; guard_rate: string; avg_latency_ms: number; latency_p95_ms: number; cache_hit_rate: string; uptime_seconds: number; by_touchpoint: Record<string, number>; }
+
+function StatCard({ icon, label, value, subtitle, accent = 'aviation', loading }: { icon: React.ReactNode; label: string; value: string; subtitle: string; accent?: 'aviation' | 'success' | 'warning'; loading: boolean }) {
+  const colors = { aviation: 'border-t-aviation text-aviation', success: 'border-t-success text-success', warning: 'border-t-warning text-warning' };
   return (
-    <div className="dashboard-view">
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-        Operational Analytics
-      </h2>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Metrics for the last 24 hours across all terminals.</p>
-      
-      <div className="stats-grid">
-        <div className="panel stat-card" style={{ borderTop: '4px solid var(--accent-color)' }}>
-          <div className="stat-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Activity size={18} className="text-accent" style={{ color: 'var(--accent-color)' }} /> Total Translations
-          </div>
-          <div className="stat-value">1,248</div>
-          <div style={{ color: 'var(--success-color)', fontSize: '0.875rem', fontWeight: 600 }}>↑ 12% vs yesterday</div>
-        </div>
-        
-        <div className="panel stat-card" style={{ borderTop: '4px solid var(--warning-color)' }}>
-          <div className="stat-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ShieldAlert size={18} style={{ color: 'var(--warning-color)' }} /> Terminology Corrections
-          </div>
-          <div className="stat-value">342</div>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Guard interception rate: 27%</div>
-        </div>
+    <Card className={`border-t-[3px] ${colors[accent]}`} padding="lg">
+      <div className="flex items-center gap-2 mb-3"><span>{icon}</span><span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">{label}</span></div>
+      {loading ? <div className="space-y-2"><Skeleton className="h-8 w-20" /><Skeleton className="h-3 w-28" /></div> :
+        <><div className="text-[28px] font-bold text-text-primary tabular-nums mb-1">{value}</div><div className="text-xs text-text-tertiary">{subtitle}</div></>}
+    </Card>
+  );
+}
 
-        <div className="panel stat-card" style={{ borderTop: '4px solid var(--accent-hover)' }}>
-          <div className="stat-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Globe size={18} style={{ color: 'var(--accent-hover)' }} /> Top Language Pairs
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
-                <span>TR → EN</span>
-                <span style={{ fontWeight: 600 }}>68%</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
-                <span>EN → TR</span>
-                <span style={{ fontWeight: 600 }}>24%</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
-                <span>TR → RU</span>
-                <span style={{ fontWeight: 600 }}>8%</span>
-            </div>
-          </div>
-        </div>
+export function DashboardView() {
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [error, setError] = useState(false);
 
-        <div className="panel stat-card" style={{ borderTop: '4px solid var(--success-color)' }}>
-          <div className="stat-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Zap size={18} style={{ color: 'var(--success-color)' }} /> Avg Latency
-          </div>
-          <div className="stat-value">745<span style={{ fontSize: '1.25rem', color: 'var(--text-tertiary)', marginLeft: '4px' }}>ms</span></div>
-          <div style={{ color: 'var(--success-color)', fontSize: '0.875rem', fontWeight: 600 }}>P95: 1.2s</div>
-        </div>
-      </div>
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const r = await fetch('/api/debug/health'); if (!r.ok) throw new Error('');
+        const d = await r.json();
+        setMetrics({ total_translations: d.glossary_terms || 0, guard_interventions: 0, guard_rate: '0%', avg_latency_ms: 0, latency_p95_ms: 0, cache_hit_rate: '0%', uptime_seconds: 0, by_touchpoint: {} });
+      } catch { setError(true); }
+    };
+    fetchMetrics(); const i = setInterval(fetchMetrics, 5000); return () => clearInterval(i);
+  }, []);
 
-      <div className="panel" style={{ overflow: 'hidden' }}>
-        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--panel-border)', background: 'var(--bg-color)' }}>
-            <h3 style={{ margin: 0, fontSize: '1.125rem' }}>Recent Guard Interventions</h3>
+  const loading = !metrics && !error;
+  const empty = metrics && metrics.total_translations === 0;
+
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-5xl mx-auto p-8 space-y-6">
+        <div><h1 className="text-xl font-bold text-text-primary">Operational Analytics</h1><p className="text-sm text-text-tertiary mt-1">Real-time translation metrics across all touchpoints</p></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={<Activity size={17} />} label="Translations" value={metrics?.total_translations.toLocaleString() || '0'} subtitle="Total today" accent="aviation" loading={loading} />
+          <StatCard icon={<ShieldAlert size={17} />} label="Guard Rate" value={metrics?.guard_rate || '0%'} subtitle="Terminology corrections" accent="warning" loading={loading} />
+          <StatCard icon={<Zap size={17} />} label="Avg Latency" value={metrics ? `${Math.round(metrics.avg_latency_ms)}ms` : '—'} subtitle={`P95: ${metrics ? Math.round(metrics.latency_p95_ms) : 0}ms`} accent={metrics && metrics.avg_latency_ms > 0 && metrics.avg_latency_ms < 500 ? 'success' : 'warning'} loading={loading} />
+          <StatCard icon={<TrendingUp size={17} />} label="Cache Hits" value={metrics?.cache_hit_rate || '0%'} subtitle="Instant translations" accent="aviation" loading={loading} />
         </div>
-        <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-                <thead>
-                    <tr>
-                        <th>Context</th>
-                        <th>Original (LLM)</th>
-                        <th>Corrected (Guard)</th>
-                        <th>Reason</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><span className="badge badge-outline">BOARDING</span></td>
-                        <td style={{ color: 'var(--danger-text)', fontWeight: 500 }}>boarding card</td>
-                        <td style={{ color: 'var(--success-text)', fontWeight: 600 }}>boarding pass</td>
-                        <td style={{ color: 'var(--text-secondary)' }}>Canonical terminology enforced</td>
-                    </tr>
-                    <tr>
-                        <td><span className="badge badge-outline">SECURITY</span></td>
-                        <td style={{ color: 'var(--danger-text)', fontWeight: 500 }}>luggage</td>
-                        <td style={{ color: 'var(--success-text)', fontWeight: 600 }}>baggage</td>
-                        <td style={{ color: 'var(--text-secondary)' }}>Forbidden alternative replaced</td>
-                    </tr>
-                    <tr>
-                        <td><span className="badge badge-outline">GATE</span></td>
-                        <td style={{ color: 'var(--danger-text)', fontWeight: 500 }}>late</td>
-                        <td style={{ color: 'var(--success-text)', fontWeight: 600 }}>delay</td>
-                        <td style={{ color: 'var(--text-secondary)' }}>Canonical terminology enforced</td>
-                    </tr>
-                    <tr>
-                        <td><span className="badge badge-outline">BOARDING</span></td>
-                        <td style={{ color: 'var(--danger-text)', fontWeight: 500 }}>rows 15-25</td>
-                        <td style={{ color: 'var(--success-text)', fontWeight: 600 }}>rows 15 through 25</td>
-                        <td style={{ color: 'var(--text-secondary)' }}>Row range formatting</td>
-                    </tr>
-                </tbody>
-            </table>
+        <Card padding="lg">
+          <h2 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2"><Globe size={15} className="text-text-tertiary" />Activity by Touchpoint</h2>
+          {loading ? <div className="space-y-2">{[1,2,3,4].map(i => <Skeleton key={i} className="h-6 w-full" />)}</div> :
+           empty ? <p className="text-sm text-text-tertiary py-8 text-center">Start translating to see touchpoint distribution</p> :
+           <div className="space-y-3">
+            {Object.entries(metrics!.by_touchpoint).sort(([,a],[,b]) => b - a).slice(0, 8).map(([tp, count]) => {
+              const max = Math.max(...Object.values(metrics!.by_touchpoint));
+              return (
+                <div key={tp} className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-text-secondary w-28 truncate">{tp.replace(/_/g, ' ')}</span>
+                  <div className="flex-1 h-6 bg-subtle rounded-full overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${(count/max)*100}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} className="h-full bg-aviation rounded-full" />
+                  </div>
+                  <span className="text-xs font-semibold text-text-primary tabular-nums w-8 text-right">{count}</span>
+                </div>
+              );
+            })}
+          </div>}
+        </Card>
+        <div className="flex items-center justify-center gap-2 text-xs text-text-tertiary">
+          <Clock size={11} /><span>System online for {metrics ? Math.floor(metrics.uptime_seconds / 3600) : 0}h {metrics ? Math.floor((metrics.uptime_seconds % 3600) / 60) : 0}m</span>
         </div>
       </div>
     </div>

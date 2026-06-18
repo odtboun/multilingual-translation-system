@@ -1,42 +1,42 @@
 import { useState } from 'react';
-import { Plane, Settings } from 'lucide-react';
-import OperatorView from './components/OperatorView';
-import DashboardView from './components/DashboardView';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Shell } from './components/Shell';
+import { OperatorTerminal } from './components/OperatorTerminal';
+import { DashboardView } from './components/DashboardView';
+import { DemoWalkthrough } from './components/DemoWalkthrough';
 import './index.css';
 
+type View = 'operator' | 'dashboard' | 'demo';
+const LABELS: Record<View, string> = { operator: 'Terminal', dashboard: 'Dashboard', demo: 'Demo' };
+
+const pageVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+};
+
 function App() {
-  const [currentView, setCurrentView] = useState<'operator' | 'dashboard'>('operator');
+  const [view, setView] = useState<View>('operator');
+  const [metrics, setMetrics] = useState({ count: 0, latency: 0, guardRate: '0%' });
 
   return (
-    <div className="app-container">
-      <nav className="navbar">
-        <div className="nav-brand">
-          <Plane className="text-accent" />
-          <span>Aviation Translation System</span>
-        </div>
-        <div className="nav-links">
-          <button 
-            className={currentView === 'operator' ? 'active' : ''} 
-            onClick={() => setCurrentView('operator')}
-          >
-            Operator Terminal
+    <Shell count={metrics.count} latency={metrics.latency} guardRate={metrics.guardRate}>
+      <div className="absolute bottom-12 left-6 z-50 flex gap-1 bg-surface rounded-lg border border-border shadow-dropdown p-1">
+        {(Object.keys(LABELS) as View[]).map((key) => (
+          <button key={key} onClick={() => setView(key)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 ${view === key ? 'bg-aviation text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-subtle'}`}>
+            {LABELS[key]}
           </button>
-          <button 
-            className={currentView === 'dashboard' ? 'active' : ''} 
-            onClick={() => setCurrentView('dashboard')}
-          >
-            Dashboard
-          </button>
-          <button className="icon-only">
-            <Settings size={20} />
-          </button>
-        </div>
-      </nav>
-
-      <main className="main-content">
-        {currentView === 'operator' ? <OperatorView /> : <DashboardView />}
-      </main>
-    </div>
+        ))}
+      </div>
+      <AnimatePresence mode="wait">
+        <motion.div key={view} variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }} className="h-full">
+          {view === 'operator' && <OperatorTerminal onMetrics={setMetrics} />}
+          {view === 'dashboard' && <DashboardView />}
+          {view === 'demo' && <DemoWalkthrough />}
+        </motion.div>
+      </AnimatePresence>
+    </Shell>
   );
 }
 
