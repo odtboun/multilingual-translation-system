@@ -27,7 +27,7 @@ export const DEMO_SCRIPT: DemoStep[] = [
     sourceLang: 'tr', targetLang: 'en', touchpoint: 'BOARDING',
     flight: { flight: 'TK1234', gate: 'A12', destination: 'London', destination_code: 'LHR', status: 'BOARDING', boarding_rows: '15-25' },
     expectedBehavior: 'Guard corrects "boarding card" → "boarding pass" automatically',
-    visualHint: 'Watch the guard correction panel appear. Red strikethrough shows what the LLM output, green shows the enforced aviation term.',
+    visualHint: 'The guard panel below the translation shows whether the output passed. If the LLM used a non-standard term like "boarding card," you\'d see it struck through in red and corrected to "boarding pass" in green. If the translation is already correct, it shows "Clean" with no violations.',
   },
   {
     id: 3, title: 'Context Shift — Same Phrase, Different Airport',
