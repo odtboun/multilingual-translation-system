@@ -63,11 +63,14 @@ export function TranslationDisplay({ result, loading, sourceText, onPlayTTS, str
           </motion.div>
         </AnimatePresence>
       </div>
-      {result && <div className="px-8 pb-4"><GuardDiff corrections={result.guard_corrections} /></div>}
       {result && !streaming && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="px-8 pb-3 flex items-center gap-3 text-[11px] text-text-tertiary">
-          <span className="tabular-nums">{result.latency_ms}ms</span><span className="text-border">·</span>
-          <span>{result.model_used}</span><span className="text-border">·</span>
+          <GuardDiff corrections={result.guard_corrections} />
+          <span className="text-border">·</span>
+          <span className="tabular-nums">{result.latency_ms}ms</span>
+          <span className="text-border">·</span>
+          <span>{result.model_used}</span>
+          <span className="text-border">·</span>
           <span>{result.glossary_terms_injected} glossary terms</span>
           {result.notes.length > 0 && <><span className="text-border">·</span><span className="text-warning font-medium">{result.notes.length} note{result.notes.length > 1 ? 's' : ''}</span></>}
         </motion.div>
