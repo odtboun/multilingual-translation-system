@@ -125,12 +125,19 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ─── Voice ───────────────────────────────────────────────────
-  const startWebSpeech = useCallback(() => {
+  // ─── Voice (auto-detects language from transcript) ──────────
+  const retryRef = useRef(false); // track retry state
+  const langRef = useRef(voiceLang);
+  useEffect(() => { langRef.current = voiceLang; }, [voiceLang]);
+
+  // Client-side language check: does text look Turkish?
+  const looksTurkish = (text: string) => /[çğıöşüÇĞİÖŞÜ]/.test(text);
+
+  const startWebSpeech = useCallback((lang: string) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return false;
     const r = new SR();
-    r.continuous = true; r.interimResults = true; r.lang = voiceLang;
+    r.continuous = true; r.interimResults = true; r.lang = lang;
 
     r.onresult = (event: SpeechRecognitionEvent) => {
       let interim = '', finalText = '';
@@ -144,10 +151,32 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         setInterimTranscript('');
         setVoicePhase('translating');
         processText(finalText.trim()).then(() => setVoicePhase('idle'));
+        return;
+      }
+      // Check interim text: does it match the expected language?
+      if (interim && !retryRef.current && interim.length > 6) {
+        const isTurkish = looksTurkish(interim);
+        const expectingTurkish = lang.startsWith('tr');
+        if (isTurkish !== expectingTurkish) {
+          // Wrong language — retry with opposite
+          retryRef.current = true;
+          r.stop();
+          const opposite = lang.startsWith('tr') ? 'en-US' : 'tr-TR';
+          setVoiceLang(opposite);
+          // Brief pause then restart with corrected language
+          setTimeout(() => startWebSpeech(opposite), 100);
+        }
       }
     };
-    r.onerror = () => setVoicePhase('idle');
-    r.onend = () => { if (voicePhase === 'recording') r.start(); };
+    r.onerror = () => { retryRef.current = false; setVoicePhase('idle'); };
+    r.onend = () => {
+      if (voicePhase === 'recording' && !retryRef.current) {
+        // Natural pause — restart with same language
+        setTimeout(() => {
+          if (voicePhase === 'recording') startWebSpeech(langRef.current);
+        }, 100);
+      }
+    };
     recognitionRef.current = r;
     r.start();
     return true;
@@ -188,8 +217,8 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         setVoicePhase('translating'); processText(t).then(() => setVoicePhase('idle'));
       } else setVoicePhase('idle');
     } else if (voicePhase === 'idle') {
-      const ok = startWebSpeech();
-      if (ok) { setVoicePhase('recording'); setInterimTranscript(''); }
+      const ok = startWebSpeech(voiceLang);
+      if (ok) { setVoicePhase('recording'); setInterimTranscript(''); retryRef.current = false; }
       else { setVoicePhase('recording'); startAudioRecording(); }
     }
   }, [voicePhase, startWebSpeech, startAudioRecording, interimTranscript, processText]);
