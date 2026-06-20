@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Keyboard, Mic, Copy } from 'lucide-react';
 import { ContextHeader } from './ContextHeader';
 import { VoiceButton, type VoicePhase } from './VoiceButton';
@@ -57,13 +57,17 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
   const [mode, setMode] = useState<'voice' | 'text'>('text');
   const [text, setText] = useState('');
   const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle');
+  const [interimTranscript, setInterimTranscript] = useState('');
   const [metricsAcc, setMetricsAcc] = useState({ count: 0, totalLatency: 0, corrections: 0 });
+
+  // Use ref in callbacks to avoid stale closures without adding to dep arrays
+  const metricsRef = useRef(metricsAcc);
+  useEffect(() => { metricsRef.current = metricsAcc; }, [metricsAcc]);
 
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
     leftRef.current?.scrollTo({ top: leftRef.current.scrollHeight, behavior: 'smooth' });
@@ -89,7 +93,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
       console.error(e);
       setMessages(prev => prev.map(m => m.id === id ? { ...m, loading: false } : m));
     }
-  }, [touchpoint, metricsAcc]);
+  }, [touchpoint]);
 
   const handleSend = useCallback(() => {
     const input = text.trim();
@@ -102,91 +106,93 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ─── Voice recording ─────────────────────────────────────────
-  const toggleRecording = useCallback(async () => {
-    if (voicePhase === 'recording') {
-      // Stop recording
-      mediaRecorderRef.current?.stop();
-      setVoicePhase('transcribing');
-    } else if (voicePhase === 'idle') {
-      // Start recording
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm' });
-        mediaRecorderRef.current = mr;
-        audioChunksRef.current = [];
-
-        mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-
-        mr.onstop = async () => {
-          stream.getTracks().forEach(t => t.stop());
-          const blob = new Blob(audioChunksRef.current, { type: mr.mimeType });
-          await processVoice(blob);
-        };
-
-        mr.start();
-        setVoicePhase('recording');
-      } catch (e) {
-        console.error('Microphone access denied', e);
-        alert('Microphone access is required for voice input. Please allow microphone access in your browser settings.');
-      }
+  // ─── Voice (Web Speech API — streaming, zero latency) ────────
+  const startRecognition = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Speech recognition is not supported in this browser. Please use Chrome.');
+      return;
     }
-  }, [voicePhase]);
 
-  // ─── STT + translate + TTS pipeline ──────────────────────────
-  const processVoice = useCallback(async (audioBlob: Blob) => {
-    try {
-      // Step 1: STT
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
-      const sttRes = await fetch(`${API_BASE}/voice/stt`, { method: 'POST', body: formData });
-      if (!sttRes.ok) throw new Error(`STT failed: ${sttRes.status}`);
-      const sttData = await sttRes.json();
-      const transcribed = sttData.text?.trim();
-      if (!transcribed) {
-        setVoicePhase('idle');
-        return;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = ''; // empty = auto-detect
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = '';
+      let finalText = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalText += result[0].transcript;
+        } else {
+          interim += result[0].transcript;
+        }
       }
 
-      // Step 2: Show transcription briefly, then translate
+      // Show interim streaming text
+      if (interim) {
+        setInterimTranscript(interim);
+      }
+
+      // On final result, immediately translate
+      if (finalText.trim()) {
+        setInterimTranscript('');
+        setVoicePhase('translating');
+        processText(finalText.trim()).then(() => setVoicePhase('idle'));
+      }
+    };
+
+    recognition.onerror = (event: Event) => {
+      const e = event as SpeechRecognitionErrorEvent;
+      console.error('Speech recognition error:', e.error);
+      if (e.error === 'no-speech') {
+        // No speech detected — just go back to idle silently
+        setVoicePhase('idle');
+      } else if (e.error === 'not-allowed') {
+        alert('Microphone access denied. Please allow microphone access in browser settings.');
+        setVoicePhase('idle');
+      } else {
+        setVoicePhase('idle');
+      }
+    };
+
+    recognition.onend = () => {
+      // If we ended naturally (not because we stopped), restart
+      if (voicePhase === 'recording') {
+        recognition.start();
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setVoicePhase('recording');
+    setInterimTranscript('');
+  }, [voicePhase, processText]);
+
+  const stopRecognition = useCallback(() => {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    // If there's interim text, treat it as final
+    if (interimTranscript.trim()) {
+      const finalText = interimTranscript.trim();
+      setInterimTranscript('');
       setVoicePhase('translating');
-      const id = ++msgCounter;
-      const newMsg: Message = { id, sourceText: transcribed, sourceLang: 'tr', result: null, loading: true };
-      setMessages(prev => [...prev, newMsg]);
-
-      const transRes = await fetch(`${API_BASE}/translate/conversation`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: transcribed, context: { touchpoint, flight: DEMO_FLIGHT } }),
-      });
-      if (!transRes.ok) throw new Error(`Translation failed: ${transRes.status}`);
-      const transData: TranslationResult = await transRes.json();
-      const detected = transData.source_lang || 'en';
-      setMessages(prev => prev.map(m => m.id === id ? { ...m, sourceLang: detected, result: transData, loading: false } : m));
-      updateMetrics(transData);
-
-      // Step 3: TTS — speak the English translation aloud
-      const enText = detected === 'en' ? transcribed : transData.translation;
-      playTTS(enText);
-    } catch (e) {
-      console.error('Voice pipeline failed:', e);
-    } finally {
+      processText(finalText).then(() => setVoicePhase('idle'));
+    } else {
       setVoicePhase('idle');
     }
-  }, [touchpoint, metricsAcc]);
+  }, [interimTranscript, processText]);
 
-  const playTTS = useCallback(async (text: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/voice/tts`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, target_lang: 'en' }),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.audio_url) {
-        new Audio(data.audio_url).play().catch(() => {});
-      }
-    } catch { /* TTS is optional — don't block on failure */ }
-  }, []);
+  const toggleRecording = useCallback(() => {
+    if (voicePhase === 'recording') {
+      stopRecognition();
+    } else if (voicePhase === 'idle') {
+      startRecognition();
+    }
+  }, [voicePhase, startRecognition, stopRecognition]);
 
   // ─── Metrics ─────────────────────────────────────────────────
   const updateMetrics = useCallback((data: TranslationResult) => {
@@ -199,6 +205,34 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     });
   }, [onMetrics]);
 
+  // ─── TTS (speak English output) ──────────────────────────────
+  const playTTS = useCallback(async (text: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/voice/tts`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, target_lang: 'en' }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.audio_url) {
+        new Audio(data.audio_url).play().catch(() => {});
+      }
+    } catch { /* optional */ }
+  }, []);
+
+  // Auto-play TTS when a message result arrives
+  const prevMsgCount = useRef(0);
+  useEffect(() => {
+    if (messages.length > prevMsgCount.current) {
+      const latest = messages[messages.length - 1];
+      if (latest?.result?.translation && !latest.loading) {
+        const enText = latest.sourceLang === 'en' ? latest.sourceText : latest.result.translation;
+        playTTS(enText);
+      }
+      prevMsgCount.current = messages.length;
+    }
+  }, [messages, playTTS]);
+
   return (
     <div className="h-full flex flex-col">
       <ContextHeader touchpoint={touchpoint} onTouchpointChange={setTouchpoint} flight={DEMO_FLIGHT}
@@ -206,7 +240,6 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
 
       {/* Dual panels */}
       <div className="flex-1 flex divide-x divide-border overflow-hidden">
-        {/* LEFT: Turkish */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="px-4 py-2 border-b border-border bg-subtle shrink-0">
             <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider text-center">🇹🇷 Turkish</p>
@@ -223,8 +256,6 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
             )}
           </div>
         </div>
-
-        {/* RIGHT: English */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="px-4 py-2 border-b border-border bg-subtle shrink-0">
             <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider text-center">🇬🇧 English</p>
@@ -260,10 +291,28 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
           </div>
 
           {mode === 'voice' ? (
-            <div className="flex flex-col items-center py-4">
+            <div className="flex flex-col items-center py-2">
               <VoiceButton phase={voicePhase} onToggle={toggleRecording} />
-              <p className="mt-3 text-xs text-text-tertiary text-center">
-                Speak in any language — auto-detected
+
+              {/* Streaming transcription — appears word-by-word as you speak */}
+              <AnimatePresence>
+                {interimTranscript && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="mt-3 px-4 py-2 rounded-lg bg-aviation-light/50 border border-aviation/10 max-w-md"
+                  >
+                    <p className="text-sm text-text-primary leading-relaxed">
+                      {interimTranscript}
+                      <span className="inline-block w-1 h-4 bg-aviation ml-0.5 animate-pulse align-middle" />
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <p className="mt-2 text-xs text-text-tertiary text-center">
+                Speak in any language — words appear as you speak
               </p>
             </div>
           ) : (
