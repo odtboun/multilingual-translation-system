@@ -153,7 +153,7 @@ export function ConversationView({ onMetrics }: { onMetrics: (m: { count: number
 
           {inputMode === 'voice' ? (
             <div className="flex flex-col items-center py-4">
-              <VoiceButton recording={recording} loading={globalLoading} disabled={globalLoading && !recording} onToggle={handleVoiceToggle} />
+              <VoiceButton phase={recording ? 'recording' : globalLoading ? 'translating' : 'idle'} onToggle={handleVoiceToggle} />
               <p className="mt-3 text-xs text-text-tertiary text-center">Speak in <span className="font-medium text-text-secondary">any language</span> — auto-detected</p>
             </div>
           ) : (

@@ -32,7 +32,7 @@ export function InputArea({ onTranslate, onVoiceToggle, recording, loading, sour
         </div>
         {mode === 'voice' ? (
           <div className="flex flex-col items-center py-4">
-            <VoiceButton recording={recording} loading={loading} disabled={loading && !recording} onToggle={onVoiceToggle} />
+            <VoiceButton phase={recording ? 'recording' : loading ? 'translating' : 'idle'} onToggle={onVoiceToggle} />
             <p className="mt-3 text-xs text-text-tertiary text-center">Speak in <span className="font-medium text-text-secondary">{sourceLangName}</span></p>
           </div>
         ) : (
