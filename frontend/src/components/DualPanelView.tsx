@@ -276,7 +276,14 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
                 )}
               </AnimatePresence>
               <p className="mt-2 text-xs text-text-tertiary text-center">
-                Voice: <span className="font-medium text-text-secondary">{voiceLang === 'tr-TR' ? 'Türkçe' : 'English'}</span>
+                Voice:{' '}
+                <button
+                  onClick={() => setVoiceLang(v => v === 'tr-TR' ? 'en-US' : 'tr-TR')}
+                  className="font-medium text-text-secondary hover:text-aviation underline decoration-dotted underline-offset-2 transition-colors"
+                >
+                  {voiceLang === 'tr-TR' ? 'Türkçe' : 'English'}
+                </button>
+                {' '}· tap to switch
               </p>
             </div>
           ) : (
