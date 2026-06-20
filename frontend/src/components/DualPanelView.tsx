@@ -50,6 +50,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
   const [text, setText] = useState('');
   const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle');
   const [interimTranscript, setInterimTranscript] = useState('');
+  const [voiceLang, setVoiceLang] = useState('tr-TR'); // default Turkish (airport context)
   const [langA, setLangA] = useState<string | null>(null); // detected language for speaker A
   const [langB, setLangB] = useState<string | null>(null); // detected language for speaker B
   const [metricsAcc, setMetricsAcc] = useState({ count: 0, totalLatency: 0, corrections: 0 });
@@ -96,6 +97,8 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
 
       setTurns(prev => prev.map(t => t.id === id ? { ...t, sourceLang: detected, result: data, loading: false } : t));
       assignLanguages(detected);
+      // Update voice recognition language based on detected language
+      setVoiceLang(detected === 'tr' ? 'tr-TR' : 'en-US');
 
       // Metrics
       setMetricsAcc(prev => {
@@ -127,7 +130,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return false;
     const r = new SR();
-    r.continuous = true; r.interimResults = true; r.lang = '';
+    r.continuous = true; r.interimResults = true; r.lang = voiceLang;
 
     r.onresult = (event: SpeechRecognitionEvent) => {
       let interim = '', finalText = '';
@@ -272,7 +275,9 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
                   </motion.div>
                 )}
               </AnimatePresence>
-              <p className="mt-2 text-xs text-text-tertiary text-center">Speak in any language</p>
+              <p className="mt-2 text-xs text-text-tertiary text-center">
+                Voice: <span className="font-medium text-text-secondary">{voiceLang === 'tr-TR' ? 'Türkçe' : 'English'}</span>
+              </p>
             </div>
           ) : (
             <div className="flex items-end gap-3">
