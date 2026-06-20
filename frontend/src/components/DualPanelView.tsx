@@ -27,16 +27,16 @@ const SPEAKER_A_BG = 'bg-blue-50 border-blue-200';
 const SPEAKER_B_BG = 'bg-orange-50 border-orange-200';
 
 /** A single row inside a language panel. */
-function PanelRow({ text, isOriginal, speaker }: { text: string; isOriginal: boolean; speaker: 'A' | 'B' }) {
+function PanelRow({ text, speaker }: { text: string; speaker: 'A' | 'B' }) {
   const bg = speaker === 'A' ? SPEAKER_A_BG : SPEAKER_B_BG;
-  const align = isOriginal ? 'self-end' : 'self-start';
+  const align = speaker === 'A' ? 'self-start rounded-bl-md' : 'self-end rounded-br-md';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className={`${align} max-w-[85%] px-4 py-2.5 rounded-2xl border ${bg} ${isOriginal ? 'rounded-br-md' : 'rounded-bl-md'}`}
+      className={`${align} max-w-[85%] px-4 py-2.5 rounded-2xl border ${bg}`}
     >
       <p className="text-base font-semibold text-text-primary leading-relaxed">{text}</p>
     </motion.div>
@@ -221,9 +221,8 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
               turns.map(t => {
                 const speaker = getSpeaker(t.sourceLang);
                 const textInLangA = t.sourceLang === langA ? t.sourceText : (t.result?.translation || '');
-                const isOriginal = t.sourceLang === langA;
                 if (!textInLangA && t.loading) return null;
-                return <PanelRow key={t.id} text={textInLangA || '...'} isOriginal={isOriginal} speaker={speaker} />;
+                return <PanelRow key={t.id} text={textInLangA || '...'} speaker={speaker} />;
               })
             )}
           </div>
@@ -241,9 +240,8 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
               turns.map(t => {
                 const speaker = getSpeaker(t.sourceLang);
                 const textInLangB = t.sourceLang === langB ? t.sourceText : (t.result?.translation || '');
-                const isOriginal = t.sourceLang === langB;
                 if (!textInLangB && t.loading) return null;
-                return <PanelRow key={t.id} text={textInLangB || '...'} isOriginal={isOriginal} speaker={speaker} />;
+                return <PanelRow key={t.id} text={textInLangB || '...'} speaker={speaker} />;
               })
             )}
           </div>
