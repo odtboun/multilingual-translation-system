@@ -214,7 +214,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
           <div className="px-4 py-2 border-b border-border bg-subtle shrink-0 text-center">
             <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{panelALabel}</p>
           </div>
-          <div ref={leftRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div ref={leftRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
             {turns.length === 0 ? (
               <div className="flex items-center justify-center h-full text-text-tertiary text-xs">—</div>
             ) : (
@@ -234,7 +234,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
           <div className="px-4 py-2 border-b border-border bg-subtle shrink-0 text-center">
             <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{panelBLabel}</p>
           </div>
-          <div ref={rightRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div ref={rightRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
             {turns.length === 0 ? (
               <div className="flex items-center justify-center h-full text-text-tertiary text-xs">—</div>
             ) : (
