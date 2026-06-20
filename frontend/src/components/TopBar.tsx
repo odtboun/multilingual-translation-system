@@ -5,6 +5,7 @@ const TABS: { key: View; label: string }[] = [
   { key: 'chat', label: 'Chat' },
   { key: 'operator', label: 'One-Way' },
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'demo', label: 'Demo' },
 ];
 
 interface TopBarProps {
