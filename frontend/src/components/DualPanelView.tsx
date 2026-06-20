@@ -106,38 +106,28 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ─── Voice (Web Speech API — streaming, zero latency) ────────
-  const startRecognition = useCallback(() => {
+  // ─── Voice (Web Speech API primary, MediaRecorder+Whisper fallback) ──
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const startWebSpeech = useCallback(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome.');
-      return;
-    }
+    if (!SpeechRecognition) return false; // not supported
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = ''; // empty = auto-detect
+    recognition.lang = ''; // auto-detect — Chrome detects from first words spoken
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = '';
       let finalText = '';
-
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
-        if (result.isFinal) {
-          finalText += result[0].transcript;
-        } else {
-          interim += result[0].transcript;
-        }
+        if (result.isFinal) finalText += result[0].transcript;
+        else interim += result[0].transcript;
       }
-
-      // Show interim streaming text
-      if (interim) {
-        setInterimTranscript(interim);
-      }
-
-      // On final result, immediately translate
+      if (interim) setInterimTranscript(interim);
       if (finalText.trim()) {
         setInterimTranscript('');
         setVoicePhase('translating');
@@ -147,44 +137,83 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
 
     recognition.onerror = (event: Event) => {
       const e = event as SpeechRecognitionErrorEvent;
-      console.error('Speech recognition error:', e.error);
-      if (e.error === 'no-speech') {
-        // No speech detected — just go back to idle silently
-        setVoicePhase('idle');
-      } else if (e.error === 'not-allowed') {
-        alert('Microphone access denied. Please allow microphone access in browser settings.');
-        setVoicePhase('idle');
-      } else {
-        setVoicePhase('idle');
-      }
+      if (e.error === 'no-speech') setVoicePhase('idle');
+      else if (e.error === 'not-allowed') { alert('Microphone access denied.'); setVoicePhase('idle'); }
+      else setVoicePhase('idle');
     };
 
     recognition.onend = () => {
-      // If we ended naturally (not because we stopped), restart
-      if (voicePhase === 'recording') {
-        recognition.start();
-      }
+      if (voicePhase === 'recording') recognition.start(); // keep listening
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-    setVoicePhase('recording');
-    setInterimTranscript('');
+    return true;
   }, [voicePhase, processText]);
 
+  // Fallback: record audio, send to Whisper via backend
+  const startAudioRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const mr = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mr;
+      audioChunksRef.current = [];
+
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        setVoicePhase('transcribing');
+        try {
+          const fd = new FormData();
+          fd.append('audio', blob, 'recording.webm');
+          const res = await fetch(`${API_BASE}/voice/stt`, { method: 'POST', body: fd });
+          if (!res.ok) throw new Error(`STT failed: ${res.status}`);
+          const data = await res.json();
+          const transcript = data.text?.trim();
+          if (transcript) {
+            setVoicePhase('translating');
+            await processText(transcript);
+          }
+        } catch (e) { console.error('Whisper STT failed:', e); }
+        finally { setVoicePhase('idle'); }
+      };
+      mr.start();
+    } catch (e) { console.error('Microphone error:', e); setVoicePhase('idle'); }
+  }, [processText]);
+
+  const startRecognition = useCallback(() => {
+    const started = startWebSpeech();
+    if (!started) {
+      // Web Speech API not available — fall back to audio recording + Whisper
+      setVoicePhase('recording');
+      startAudioRecording();
+    } else {
+      setVoicePhase('recording');
+      setInterimTranscript('');
+    }
+  }, [startWebSpeech, startAudioRecording]);
+
   const stopRecognition = useCallback(() => {
+    // Stop Web Speech API if active
     recognitionRef.current?.stop();
     recognitionRef.current = null;
+    // Stop MediaRecorder if active (fallback path)
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
     // If there's interim text, treat it as final
     if (interimTranscript.trim()) {
       const finalText = interimTranscript.trim();
       setInterimTranscript('');
       setVoicePhase('translating');
       processText(finalText).then(() => setVoicePhase('idle'));
-    } else {
+    } else if (voicePhase === 'recording') {
+      // No text yet — just go idle
       setVoicePhase('idle');
     }
-  }, [interimTranscript, processText]);
+  }, [interimTranscript, voicePhase, processText]);
 
   const toggleRecording = useCallback(() => {
     if (voicePhase === 'recording') {
@@ -242,7 +271,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
       <div className="flex-1 flex divide-x divide-border overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0">
           <div className="px-4 py-2 border-b border-border bg-subtle shrink-0">
-            <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider text-center">🇹🇷 Turkish</p>
+            <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider text-center">Speaker A</p>
           </div>
           <div ref={leftRef} className="flex-1 overflow-y-auto">
             {messages.length === 0 ? (
@@ -258,7 +287,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         </div>
         <div className="flex-1 flex flex-col min-w-0">
           <div className="px-4 py-2 border-b border-border bg-subtle shrink-0">
-            <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider text-center">🇬🇧 English</p>
+            <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider text-center">Speaker B</p>
           </div>
           <div ref={rightRef} className="flex-1 overflow-y-auto">
             {messages.length === 0 ? (
