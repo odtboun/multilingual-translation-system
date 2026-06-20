@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Keyboard, Mic, Copy } from 'lucide-react';
+import { Send, Keyboard, Mic } from 'lucide-react';
 import { ContextHeader } from './ContextHeader';
 import { VoiceButton, type VoicePhase } from './VoiceButton';
-import { GuardDiff } from './GuardDiff';
 import { Button } from './ui/Button';
 import { DEMO_FLIGHT, type Touchpoint, type TranslationResult } from '../types';
 
-interface Message {
+interface Turn {
   id: number;
   sourceText: string;
   sourceLang: string;
@@ -16,69 +15,76 @@ interface Message {
 }
 
 const API_BASE = '/api';
-let msgCounter = 0;
+const LANG_NAMES: Record<string, string> = {
+  tr: 'Turkish', en: 'English', ar: 'Arabic', ru: 'Russian',
+  de: 'German', fr: 'French', zh: 'Chinese', es: 'Spanish',
+  it: 'Italian', fa: 'Persian', ja: 'Japanese', ko: 'Korean',
+  pt: 'Portuguese', nl: 'Dutch',
+};
 
-function PanelRow({ primary, secondary, result, loading }: {
-  primary: string; secondary: string;
-  result: TranslationResult | null; loading: boolean;
-}) {
+// Speaker colors — soft backgrounds
+const SPEAKER_A_BG = 'bg-blue-50 border-blue-200';
+const SPEAKER_B_BG = 'bg-orange-50 border-orange-200';
+
+/** A single row inside a language panel. */
+function PanelRow({ text, isOriginal, speaker }: { text: string; isOriginal: boolean; speaker: 'A' | 'B' }) {
+  const bg = speaker === 'A' ? SPEAKER_A_BG : SPEAKER_B_BG;
+  const align = isOriginal ? 'self-end' : 'self-start';
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="px-4 py-3 border-b border-border/50 last:border-b-0"
+      className={`${align} max-w-[85%] px-4 py-2.5 rounded-2xl border ${bg} ${isOriginal ? 'rounded-br-md' : 'rounded-bl-md'}`}
     >
-      {loading ? (
-        <div className="flex items-center gap-2 py-2">
-          <div className="w-3 h-3 rounded-full border border-text-tertiary/30 border-t-text-tertiary animate-spin" />
-          <span className="text-xs text-text-tertiary">Translating...</span>
-        </div>
-      ) : (
-        <p className="text-lg font-semibold text-text-primary leading-relaxed">{primary}</p>
-      )}
-      {!loading && secondary && (
-        <div className="mt-1.5 pt-1.5 border-t border-border/30 flex items-start justify-between gap-2">
-          <p className="text-[12px] text-text-tertiary leading-relaxed italic flex-1">{secondary}</p>
-          {result && (
-            <div className="flex items-center gap-0.5 shrink-0 pt-0.5">
-              <button onClick={() => navigator.clipboard.writeText(secondary)} className="p-0.5 rounded text-text-tertiary/60 hover:text-text-secondary transition-colors" title="Copy"><Copy size={11} /></button>
-              <GuardDiff corrections={result.guard_corrections} />
-            </div>
-          )}
-        </div>
-      )}
+      <p className="text-base font-semibold text-text-primary leading-relaxed">{text}</p>
     </motion.div>
   );
 }
 
 export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; latency: number; guardRate: string }) => void }) {
   const [touchpoint, setTouchpoint] = useState<Touchpoint>('BOARDING');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [mode, setMode] = useState<'voice' | 'text'>('text');
   const [text, setText] = useState('');
   const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle');
   const [interimTranscript, setInterimTranscript] = useState('');
+  const [langA, setLangA] = useState<string | null>(null); // detected language for speaker A
+  const [langB, setLangB] = useState<string | null>(null); // detected language for speaker B
   const [metricsAcc, setMetricsAcc] = useState({ count: 0, totalLatency: 0, corrections: 0 });
-
-  // Use ref in callbacks to avoid stale closures without adding to dep arrays
-  const metricsRef = useRef(metricsAcc);
-  useEffect(() => { metricsRef.current = metricsAcc; }, [metricsAcc]);
 
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const counterRef = useRef(0);
 
+  const metricsRef = useRef(metricsAcc);
+  useEffect(() => { metricsRef.current = metricsAcc; }, [metricsAcc]);
+
+  // Auto-scroll both panels
   useEffect(() => {
     leftRef.current?.scrollTo({ top: leftRef.current.scrollHeight, behavior: 'smooth' });
     rightRef.current?.scrollTo({ top: rightRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+  }, [turns]);
 
-  // ─── Text send ───────────────────────────────────────────────
+  // Auto-assign languages from detected source langs
+  const assignLanguages = useCallback((detectedLang: string) => {
+    if (!langA && !langB) {
+      setLangA(detectedLang);
+    } else if (langA && !langB && detectedLang !== langA) {
+      setLangB(detectedLang);
+    }
+  }, [langA, langB]);
+
+  // ─── Core: send text, get translation, append to turns ──────
   const processText = useCallback(async (input: string) => {
-    const id = ++msgCounter;
-    const newMsg: Message = { id, sourceText: input, sourceLang: 'tr', result: null, loading: true };
-    setMessages(prev => [...prev, newMsg]);
+    const id = ++counterRef.current;
+    const newTurn: Turn = { id, sourceText: input, sourceLang: 'tr', result: null, loading: true };
+    setTurns(prev => [...prev, newTurn]);
 
     try {
       const res = await fetch(`${API_BASE}/translate/conversation`, {
@@ -87,13 +93,23 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
       });
       const data: TranslationResult = await res.json();
       const detected = data.source_lang || 'en';
-      setMessages(prev => prev.map(m => m.id === id ? { ...m, sourceLang: detected, result: data, loading: false } : m));
-      updateMetrics(data);
+
+      setTurns(prev => prev.map(t => t.id === id ? { ...t, sourceLang: detected, result: data, loading: false } : t));
+      assignLanguages(detected);
+
+      // Metrics
+      setMetricsAcc(prev => {
+        const nc = prev.count + 1;
+        const nl = prev.totalLatency + data.latency_ms;
+        const ng = prev.corrections + data.guard_corrections.length;
+        onMetrics({ count: nc, latency: Math.round(nl / nc), guardRate: ng > 0 ? `${Math.round((ng / nc) * 100)}%` : 'Clean' });
+        return { count: nc, totalLatency: nl, corrections: ng };
+      });
     } catch (e) {
-      console.error(e);
-      setMessages(prev => prev.map(m => m.id === id ? { ...m, loading: false } : m));
+      console.error('Translation failed:', e);
+      setTurns(prev => prev.map(t => t.id === id ? { ...t, loading: false } : t));
     }
-  }, [touchpoint]);
+  }, [touchpoint, assignLanguages, onMetrics]);
 
   const handleSend = useCallback(() => {
     const input = text.trim();
@@ -106,22 +122,15 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ─── Voice (Web Speech API primary, MediaRecorder+Whisper fallback) ──
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
+  // ─── Voice ───────────────────────────────────────────────────
   const startWebSpeech = useCallback(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return false; // not supported
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return false;
+    const r = new SR();
+    r.continuous = true; r.interimResults = true; r.lang = '';
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = ''; // auto-detect — Chrome detects from first words spoken
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let interim = '';
-      let finalText = '';
+    r.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = '', finalText = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) finalText += result[0].transcript;
@@ -134,169 +143,107 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         processText(finalText.trim()).then(() => setVoicePhase('idle'));
       }
     };
-
-    recognition.onerror = (event: Event) => {
-      const e = event as SpeechRecognitionErrorEvent;
-      if (e.error === 'no-speech') setVoicePhase('idle');
-      else if (e.error === 'not-allowed') { alert('Microphone access denied.'); setVoicePhase('idle'); }
-      else setVoicePhase('idle');
-    };
-
-    recognition.onend = () => {
-      if (voicePhase === 'recording') recognition.start(); // keep listening
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
+    r.onerror = () => setVoicePhase('idle');
+    r.onend = () => { if (voicePhase === 'recording') r.start(); };
+    recognitionRef.current = r;
+    r.start();
     return true;
   }, [voicePhase, processText]);
 
-  // Fallback: record audio, send to Whisper via backend
   const startAudioRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-      const mr = new MediaRecorder(stream, { mimeType });
+      const mt = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const mr = new MediaRecorder(stream, { mimeType: mt });
       mediaRecorderRef.current = mr;
       audioChunksRef.current = [];
-
-      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const blob = new Blob(audioChunksRef.current, { type: mt });
         setVoicePhase('transcribing');
         try {
-          const fd = new FormData();
-          fd.append('audio', blob, 'recording.webm');
+          const fd = new FormData(); fd.append('audio', blob, 'recording.webm');
           const res = await fetch(`${API_BASE}/voice/stt`, { method: 'POST', body: fd });
-          if (!res.ok) throw new Error(`STT failed: ${res.status}`);
-          const data = await res.json();
-          const transcript = data.text?.trim();
-          if (transcript) {
-            setVoicePhase('translating');
-            await processText(transcript);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.text?.trim()) { setVoicePhase('translating'); await processText(data.text.trim()); }
           }
-        } catch (e) { console.error('Whisper STT failed:', e); }
-        finally { setVoicePhase('idle'); }
+        } catch (e) { console.error('STT failed:', e); }
+        setVoicePhase('idle');
       };
       mr.start();
-    } catch (e) { console.error('Microphone error:', e); setVoicePhase('idle'); }
+    } catch { setVoicePhase('idle'); }
   }, [processText]);
-
-  const startRecognition = useCallback(() => {
-    const started = startWebSpeech();
-    if (!started) {
-      // Web Speech API not available — fall back to audio recording + Whisper
-      setVoicePhase('recording');
-      startAudioRecording();
-    } else {
-      setVoicePhase('recording');
-      setInterimTranscript('');
-    }
-  }, [startWebSpeech, startAudioRecording]);
-
-  const stopRecognition = useCallback(() => {
-    // Stop Web Speech API if active
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    // Stop MediaRecorder if active (fallback path)
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
-    // If there's interim text, treat it as final
-    if (interimTranscript.trim()) {
-      const finalText = interimTranscript.trim();
-      setInterimTranscript('');
-      setVoicePhase('translating');
-      processText(finalText).then(() => setVoicePhase('idle'));
-    } else if (voicePhase === 'recording') {
-      // No text yet — just go idle
-      setVoicePhase('idle');
-    }
-  }, [interimTranscript, voicePhase, processText]);
 
   const toggleRecording = useCallback(() => {
     if (voicePhase === 'recording') {
-      stopRecognition();
+      recognitionRef.current?.stop();
+      if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+      if (interimTranscript.trim()) {
+        const t = interimTranscript.trim(); setInterimTranscript('');
+        setVoicePhase('translating'); processText(t).then(() => setVoicePhase('idle'));
+      } else setVoicePhase('idle');
     } else if (voicePhase === 'idle') {
-      startRecognition();
+      const ok = startWebSpeech();
+      if (ok) { setVoicePhase('recording'); setInterimTranscript(''); }
+      else { setVoicePhase('recording'); startAudioRecording(); }
     }
-  }, [voicePhase, startRecognition, stopRecognition]);
+  }, [voicePhase, startWebSpeech, startAudioRecording, interimTranscript, processText]);
 
-  // ─── Metrics ─────────────────────────────────────────────────
-  const updateMetrics = useCallback((data: TranslationResult) => {
-    setMetricsAcc(prev => {
-      const nc = prev.count + 1;
-      const nl = prev.totalLatency + data.latency_ms;
-      const ng = prev.corrections + data.guard_corrections.length;
-      onMetrics({ count: nc, latency: Math.round(nl / nc), guardRate: ng > 0 ? `${Math.round((ng / nc) * 100)}%` : 'Clean' });
-      return { count: nc, totalLatency: nl, corrections: ng };
-    });
-  }, [onMetrics]);
+  // ─── Determine which speaker a turn belongs to ───────────────
+  const getSpeaker = (sourceLang: string): 'A' | 'B' => {
+    if (langA && sourceLang === langA) return 'A';
+    if (langB && sourceLang === langB) return 'B';
+    if (!langB && langA && sourceLang !== langA) return 'B';
+    return 'A';
+  };
 
-  // ─── TTS (speak English output) ──────────────────────────────
-  const playTTS = useCallback(async (text: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/voice/tts`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, target_lang: 'en' }),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.audio_url) {
-        new Audio(data.audio_url).play().catch(() => {});
-      }
-    } catch { /* optional */ }
-  }, []);
+  const panelALabel = langA ? LANG_NAMES[langA] || langA : 'Language A';
+  const panelBLabel = langB ? LANG_NAMES[langB] || langB : 'Language B';
 
-  // Auto-play TTS when a message result arrives
-  const prevMsgCount = useRef(0);
-  useEffect(() => {
-    if (messages.length > prevMsgCount.current) {
-      const latest = messages[messages.length - 1];
-      if (latest?.result?.translation && !latest.loading) {
-        const enText = latest.sourceLang === 'en' ? latest.sourceText : latest.result.translation;
-        playTTS(enText);
-      }
-      prevMsgCount.current = messages.length;
-    }
-  }, [messages, playTTS]);
-
+  // ─── Render ──────────────────────────────────────────────────
   return (
     <div className="h-full flex flex-col">
       <ContextHeader touchpoint={touchpoint} onTouchpointChange={setTouchpoint} flight={DEMO_FLIGHT}
         sourceLang="auto" targetLang="auto" onSwapLanguages={() => {}} />
 
-      {/* Dual panels */}
       <div className="flex-1 flex divide-x divide-border overflow-hidden">
+        {/* Panel: Language A */}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="px-4 py-2 border-b border-border bg-subtle shrink-0">
-            <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider text-center">Speaker A</p>
+          <div className="px-4 py-2 border-b border-border bg-subtle shrink-0 text-center">
+            <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{panelALabel}</p>
           </div>
-          <div ref={leftRef} className="flex-1 overflow-y-auto">
-            {messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-text-tertiary text-xs">Messages appear here</div>
+          <div ref={leftRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+            {turns.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-text-tertiary text-xs">—</div>
             ) : (
-              messages.map(msg => {
-                const trText = msg.sourceLang === 'tr' ? msg.sourceText : (msg.result?.translation || '');
-                const enText = msg.sourceLang === 'en' ? msg.sourceText : (msg.result?.translation || '');
-                return <PanelRow key={msg.id} primary={trText} secondary={enText} result={msg.result} loading={msg.loading} />;
+              turns.map(t => {
+                const speaker = getSpeaker(t.sourceLang);
+                const textInLangA = t.sourceLang === langA ? t.sourceText : (t.result?.translation || '');
+                const isOriginal = t.sourceLang === langA;
+                if (!textInLangA && t.loading) return null;
+                return <PanelRow key={t.id} text={textInLangA || '...'} isOriginal={isOriginal} speaker={speaker} />;
               })
             )}
           </div>
         </div>
+
+        {/* Panel: Language B */}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="px-4 py-2 border-b border-border bg-subtle shrink-0">
-            <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider text-center">Speaker B</p>
+          <div className="px-4 py-2 border-b border-border bg-subtle shrink-0 text-center">
+            <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{panelBLabel}</p>
           </div>
-          <div ref={rightRef} className="flex-1 overflow-y-auto">
-            {messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-text-tertiary text-xs">Messages appear here</div>
+          <div ref={rightRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+            {turns.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-text-tertiary text-xs">—</div>
             ) : (
-              messages.map(msg => {
-                const trText = msg.sourceLang === 'tr' ? msg.sourceText : (msg.result?.translation || '');
-                const enText = msg.sourceLang === 'en' ? msg.sourceText : (msg.result?.translation || '');
-                return <PanelRow key={msg.id} primary={enText} secondary={trText} result={msg.result} loading={msg.loading} />;
+              turns.map(t => {
+                const speaker = getSpeaker(t.sourceLang);
+                const textInLangB = t.sourceLang === langB ? t.sourceText : (t.result?.translation || '');
+                const isOriginal = t.sourceLang === langB;
+                if (!textInLangB && t.loading) return null;
+                return <PanelRow key={t.id} text={textInLangB || '...'} isOriginal={isOriginal} speaker={speaker} />;
               })
             )}
           </div>
@@ -308,41 +255,26 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         <div className="max-w-2xl mx-auto">
           <div className="flex justify-center mb-3">
             <div className="flex bg-subtle rounded-lg p-0.5">
-              <button onClick={() => setMode('voice')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${mode === 'voice' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
+              <button onClick={() => setMode('voice')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${mode === 'voice' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
                 <Mic size={15} />Voice
               </button>
-              <button onClick={() => setMode('text')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${mode === 'text' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
+              <button onClick={() => setMode('text')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${mode === 'text' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
                 <Keyboard size={15} />Text
               </button>
             </div>
           </div>
-
           {mode === 'voice' ? (
             <div className="flex flex-col items-center py-2">
               <VoiceButton phase={voicePhase} onToggle={toggleRecording} />
-
-              {/* Streaming transcription — appears word-by-word as you speak */}
               <AnimatePresence>
                 {interimTranscript && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="mt-3 px-4 py-2 rounded-lg bg-aviation-light/50 border border-aviation/10 max-w-md"
-                  >
-                    <p className="text-sm text-text-primary leading-relaxed">
-                      {interimTranscript}
-                      <span className="inline-block w-1 h-4 bg-aviation ml-0.5 animate-pulse align-middle" />
-                    </p>
+                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                    className="mt-3 px-4 py-2 rounded-lg bg-aviation-light/50 border border-aviation/10 max-w-md">
+                    <p className="text-sm text-text-primary leading-relaxed">{interimTranscript}<span className="inline-block w-1 h-4 bg-aviation ml-0.5 animate-pulse align-middle" /></p>
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              <p className="mt-2 text-xs text-text-tertiary text-center">
-                Speak in any language — words appear as you speak
-              </p>
+              <p className="mt-2 text-xs text-text-tertiary text-center">Speak in any language</p>
             </div>
           ) : (
             <div className="flex items-end gap-3">
