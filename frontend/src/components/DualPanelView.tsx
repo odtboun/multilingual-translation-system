@@ -125,32 +125,10 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ─── Voice (auto-detects language from transcript) ──────────
+  // ─── Voice: buffer → detect language → stream ──────────────
   const retryRef = useRef(false);
   const langRef = useRef(voiceLang);
   useEffect(() => { langRef.current = voiceLang; }, [voiceLang]);
-
-  // Client-side: detect likely language from Unicode ranges in text
-  const detectScript = (text: string): string | null => {
-    for (const ch of text) {
-      const cp = ch.codePointAt(0)!;
-      if (0x0600 <= cp && cp <= 0x06FF) return 'ar';   // Arabic/Persian
-      if (0x3040 <= cp && cp <= 0x30FF) return 'ja';   // Kana (before CJK!)
-      if (0xAC00 <= cp && cp <= 0xD7AF) return 'ko';   // Hangul
-      if (0x0900 <= cp && cp <= 0x097F) return 'hi';   // Devanagari
-      if (0x0400 <= cp && cp <= 0x04FF) return 'ru';   // Cyrillic
-      if (0x4E00 <= cp && cp <= 0x9FFF) return 'zh';   // CJK (after Kana)
-    }
-    // Latin script — check for language-specific chars
-    if (/[çğıöşüÇĞİÖŞÜ]/.test(text)) return 'tr';
-    if (/[äöüßÄÖÜẞ]/.test(text)) return 'de';
-    if (/[àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ]/.test(text)) return 'fr';
-    if (/[áéíóúüñÁÉÍÓÚÜÑ¿¡]/.test(text)) return 'es';
-    if (/[àèéìòùÀÈÉÌÒÙ]/.test(text)) return 'it';
-    if (/[áâãàçéêíóôõúüÁÂÃÀÇÉÊÍÓÔÕÚÜ]/.test(text)) return 'pt';
-    // Default Latin → English
-    return null;
-  };
 
   const startWebSpeech = useCallback((lang: string) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -170,21 +148,6 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         setInterimTranscript('');
         setVoicePhase('translating');
         processText(finalText.trim()).then(() => setVoicePhase('idle'));
-        return;
-      }
-      // Check interim text script vs expected language
-      if (interim && !retryRef.current && interim.length > 4) {
-        const detected = detectScript(interim);
-        if (detected) {
-          const expectedLang = lang.split('-')[0]; // 'tr-TR' → 'tr'
-          if (detected !== expectedLang) {
-            retryRef.current = true;
-            r.stop();
-            const newLang = LANG_TO_BCP47[detected] || 'en-US';
-            setVoiceLang(newLang);
-            setTimeout(() => startWebSpeech(newLang), 100);
-          }
-        }
       }
     };
     r.onerror = () => { retryRef.current = false; setVoicePhase('idle'); };
@@ -200,34 +163,97 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     return true;
   }, [voicePhase, processText]);
 
-  const startAudioRecording = useCallback(async () => {
+  // Full voice pipeline: record → detect language → stream
+  const startVoicePipeline = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mt = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
       const mr = new MediaRecorder(stream, { mimeType: mt });
       mediaRecorderRef.current = mr;
       audioChunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      let langDetected = false;
+      let detectionDone = false;
+
+      mr.ondataavailable = async (e) => {
+        if (e.data.size === 0) return;
+        audioChunksRef.current.push(e.data);
+
+        // After ~1.5s of audio, send for language detection
+        if (!langDetected) {
+          langDetected = true;
+          const partial = new Blob(audioChunksRef.current, { type: mt });
+          setVoicePhase('transcribing');
+          try {
+            const fd = new FormData();
+            fd.append('audio', partial, 'detect.webm');
+            const res = await fetch(`${API_BASE}/voice/detect-language`, { method: 'POST', body: fd });
+            if (res.ok) {
+              const data = await res.json();
+              const detectedLang = data.language || 'en';
+              const initialText = data.text || '';
+              const bcp47 = LANG_TO_BCP47[detectedLang] || 'en-US';
+              setVoiceLang(bcp47);
+              
+              // Show initial transcription immediately
+              if (initialText) {
+                setInterimTranscript(initialText);
+              }
+              
+              // Start Web Speech API with correct language
+              if (recognitionRef.current) {
+                recognitionRef.current.stop();
+              }
+              retryRef.current = false;
+              detectionDone = true;
+              startWebSpeech(bcp47);
+            }
+          } catch (err) {
+            console.error('Language detection failed:', err);
+            // Fallback: keep Web Speech API with default language
+            detectionDone = true;
+          }
+        }
+      };
+
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: mt });
-        setVoicePhase('transcribing');
-        try {
-          const fd = new FormData(); fd.append('audio', blob, 'recording.webm');
-          const res = await fetch(`${API_BASE}/voice/stt`, { method: 'POST', body: fd });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.text?.trim()) { setVoicePhase('translating'); await processText(data.text.trim()); }
-          }
-        } catch (e) { console.error('STT failed:', e); }
+        // If detection never completed, fall back to full STT
+        if (!detectionDone) {
+          const blob = new Blob(audioChunksRef.current, { type: mt });
+          setVoicePhase('transcribing');
+          try {
+            const fd = new FormData(); fd.append('audio', blob, 'recording.webm');
+            const res = await fetch(`${API_BASE}/voice/stt`, { method: 'POST', body: fd });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.text?.trim()) {
+                setVoicePhase('translating');
+                await processText(data.text.trim());
+              }
+            }
+          } catch (e) { console.error('STT failed:', e); }
+        }
         setVoicePhase('idle');
       };
-      mr.start();
-    } catch { setVoicePhase('idle'); }
-  }, [processText]);
+
+      // Start Web Speech API immediately as fallback (will be replaced after detection)
+      const wsOk = startWebSpeech(voiceLang);
+      if (!wsOk) {
+        // No Web Speech API — rely entirely on MediaRecorder + Whisper
+      }
+      
+      mr.start(1000); // request data every 1s
+      setVoicePhase('recording');
+      setInterimTranscript('');
+    } catch (e) {
+      console.error('Voice pipeline failed:', e);
+      setVoicePhase('idle');
+    }
+  }, [voiceLang, processText, startWebSpeech]);
 
   const toggleRecording = useCallback(() => {
     if (voicePhase === 'recording') {
+      // Stop: end recognition + recording
       recognitionRef.current?.stop();
       if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
       if (interimTranscript.trim()) {
@@ -235,11 +261,9 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         setVoicePhase('translating'); processText(t).then(() => setVoicePhase('idle'));
       } else setVoicePhase('idle');
     } else if (voicePhase === 'idle') {
-      const ok = startWebSpeech(voiceLang);
-      if (ok) { setVoicePhase('recording'); setInterimTranscript(''); retryRef.current = false; }
-      else { setVoicePhase('recording'); startAudioRecording(); }
+      startVoicePipeline();
     }
-  }, [voicePhase, startWebSpeech, startAudioRecording, interimTranscript, processText]);
+  }, [voicePhase, startVoicePipeline, interimTranscript, processText]);
 
   // ─── Determine which speaker a turn belongs to ───────────────
   const getSpeaker = (sourceLang: string): 'A' | 'B' => {
