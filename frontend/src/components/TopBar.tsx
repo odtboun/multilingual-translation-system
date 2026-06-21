@@ -2,8 +2,8 @@ type View = 'dual' | 'chat' | 'operator' | 'dashboard' | 'demo';
 
 const TABS: { key: View; label: string }[] = [
   { key: 'dual', label: 'Dual Panel' },
-  { key: 'chat', label: 'Chat' },
-  { key: 'operator', label: 'One-Way' },
+  // { key: 'chat', label: 'Chat' },
+  // { key: 'operator', label: 'One-Way' },
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'demo', label: 'Demo' },
 ];
