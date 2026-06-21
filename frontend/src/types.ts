@@ -52,9 +52,18 @@ export const LANGUAGES: Language[] = [
   { code: 'it', name: 'Italian' }, { code: 'fa', name: 'Persian' },
   { code: 'ja', name: 'Japanese' }, { code: 'ko', name: 'Korean' },
   { code: 'pt', name: 'Portuguese' }, { code: 'nl', name: 'Dutch' },
+  { code: 'hi', name: 'Hindi' },
 ];
 
 export const LANGUAGE_NAMES: Record<string, string> = Object.fromEntries(LANGUAGES.map(l => [l.code, l.name]));
+
+// BCP-47 language tags for Web Speech API
+export const LANG_TO_BCP47: Record<string, string> = {
+  en: 'en-US', tr: 'tr-TR', ar: 'ar-SA', ru: 'ru-RU',
+  de: 'de-DE', fr: 'fr-FR', zh: 'zh-CN', es: 'es-ES',
+  it: 'it-IT', fa: 'fa-IR', ja: 'ja-JP', ko: 'ko-KR',
+  pt: 'pt-PT', nl: 'nl-NL', hi: 'hi-IN',
+};
 
 export const TOUCHPOINTS: { value: Touchpoint; label: string; icon: string }[] = [
   { value: 'BOARDING', label: 'Boarding Gate', icon: '🚪' },

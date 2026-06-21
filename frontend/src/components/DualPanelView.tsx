@@ -4,7 +4,7 @@ import { Send, Keyboard, Mic } from 'lucide-react';
 import { ContextHeader } from './ContextHeader';
 import { VoiceButton, type VoicePhase } from './VoiceButton';
 import { Button } from './ui/Button';
-import { DEMO_FLIGHT, type Touchpoint, type TranslationResult } from '../types';
+import { DEMO_FLIGHT, LANG_TO_BCP47, LANGUAGE_NAMES, type Touchpoint, type TranslationResult } from '../types';
 
 interface Turn {
   id: number;
@@ -98,7 +98,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
       setTurns(prev => prev.map(t => t.id === id ? { ...t, sourceLang: detected, result: data, loading: false } : t));
       assignLanguages(detected);
       // Update voice recognition language based on detected language
-      setVoiceLang(detected === 'tr' ? 'tr-TR' : 'en-US');
+      setVoiceLang(LANG_TO_BCP47[detected] || 'en-US');
 
       // Metrics
       setMetricsAcc(prev => {
@@ -126,12 +126,31 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
   };
 
   // ─── Voice (auto-detects language from transcript) ──────────
-  const retryRef = useRef(false); // track retry state
+  const retryRef = useRef(false);
   const langRef = useRef(voiceLang);
   useEffect(() => { langRef.current = voiceLang; }, [voiceLang]);
 
-  // Client-side language check: does text look Turkish?
-  const looksTurkish = (text: string) => /[çğıöşüÇĞİÖŞÜ]/.test(text);
+  // Client-side: detect likely language from Unicode ranges in text
+  const detectScript = (text: string): string | null => {
+    for (const ch of text) {
+      const cp = ch.codePointAt(0)!;
+      if (0x0600 <= cp && cp <= 0x06FF) return 'ar';   // Arabic/Persian
+      if (0x3040 <= cp && cp <= 0x30FF) return 'ja';   // Kana (before CJK!)
+      if (0xAC00 <= cp && cp <= 0xD7AF) return 'ko';   // Hangul
+      if (0x0900 <= cp && cp <= 0x097F) return 'hi';   // Devanagari
+      if (0x0400 <= cp && cp <= 0x04FF) return 'ru';   // Cyrillic
+      if (0x4E00 <= cp && cp <= 0x9FFF) return 'zh';   // CJK (after Kana)
+    }
+    // Latin script — check for language-specific chars
+    if (/[çğıöşüÇĞİÖŞÜ]/.test(text)) return 'tr';
+    if (/[äöüßÄÖÜẞ]/.test(text)) return 'de';
+    if (/[àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ]/.test(text)) return 'fr';
+    if (/[áéíóúüñÁÉÍÓÚÜÑ¿¡]/.test(text)) return 'es';
+    if (/[àèéìòùÀÈÉÌÒÙ]/.test(text)) return 'it';
+    if (/[áâãàçéêíóôõúüÁÂÃÀÇÉÊÍÓÔÕÚÜ]/.test(text)) return 'pt';
+    // Default Latin → English
+    return null;
+  };
 
   const startWebSpeech = useCallback((lang: string) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -153,25 +172,24 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         processText(finalText.trim()).then(() => setVoicePhase('idle'));
         return;
       }
-      // Check interim text: does it match the expected language?
-      if (interim && !retryRef.current && interim.length > 6) {
-        const isTurkish = looksTurkish(interim);
-        const expectingTurkish = lang.startsWith('tr');
-        if (isTurkish !== expectingTurkish) {
-          // Wrong language — retry with opposite
-          retryRef.current = true;
-          r.stop();
-          const opposite = lang.startsWith('tr') ? 'en-US' : 'tr-TR';
-          setVoiceLang(opposite);
-          // Brief pause then restart with corrected language
-          setTimeout(() => startWebSpeech(opposite), 100);
+      // Check interim text script vs expected language
+      if (interim && !retryRef.current && interim.length > 4) {
+        const detected = detectScript(interim);
+        if (detected) {
+          const expectedLang = lang.split('-')[0]; // 'tr-TR' → 'tr'
+          if (detected !== expectedLang) {
+            retryRef.current = true;
+            r.stop();
+            const newLang = LANG_TO_BCP47[detected] || 'en-US';
+            setVoiceLang(newLang);
+            setTimeout(() => startWebSpeech(newLang), 100);
+          }
         }
       }
     };
     r.onerror = () => { retryRef.current = false; setVoicePhase('idle'); };
     r.onend = () => {
       if (voicePhase === 'recording' && !retryRef.current) {
-        // Natural pause — restart with same language
         setTimeout(() => {
           if (voicePhase === 'recording') startWebSpeech(langRef.current);
         }, 100);
@@ -306,7 +324,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
               </AnimatePresence>
               <p className="mt-2 text-xs text-text-tertiary text-center">
                 Listening in{' '}
-                <span className="font-medium text-text-secondary">{voiceLang === 'tr-TR' ? 'Türkçe' : 'English'}</span>
+                <span className="font-medium text-text-secondary">{LANGUAGE_NAMES[voiceLang.split('-')[0]] || voiceLang}</span>
                 {' '}· auto-switching
               </p>
             </div>
