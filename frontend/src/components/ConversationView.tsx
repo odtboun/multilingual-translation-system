@@ -77,7 +77,7 @@ export function ConversationView({ onMetrics }: { onMetrics: (m: { count: number
 
       const newCount = metricsAcc.count + 1;
       const newTotalLat = metricsAcc.totalLatency + data.latency_ms;
-      const newCorrections = metricsAcc.corrections + data.guard_corrections.length;
+      const newCorrections = metricsAcc.corrections + (data.guard_corrections?.length ?? 0);
       setMetricsAcc({ count: newCount, totalLatency: newTotalLat, corrections: newCorrections });
       onMetrics({ count: newCount, latency: Math.round(newTotalLat / newCount), guardRate: newCorrections > 0 ? `${Math.round((newCorrections / newCount) * 100)}%` : 'Clean' });
     } catch (e) {

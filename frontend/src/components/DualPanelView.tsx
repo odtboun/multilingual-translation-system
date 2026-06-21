@@ -104,7 +104,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
       setMetricsAcc(prev => {
         const nc = prev.count + 1;
         const nl = prev.totalLatency + data.latency_ms;
-        const ng = prev.corrections + data.guard_corrections.length;
+        const ng = prev.corrections + (data.guard_corrections?.length ?? 0);
         onMetrics({ count: nc, latency: Math.round(nl / nc), guardRate: ng > 0 ? `${Math.round((ng / nc) * 100)}%` : 'Clean' });
         return { count: nc, totalLatency: nl, corrections: ng };
       });
