@@ -173,7 +173,6 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
       audioChunksRef.current = [];
       let langDetected = false;
       let wsStarted = false;
-      let finalText = '';
 
       mr.ondataavailable = async (e) => {
         if (e.data.size === 0) return;
@@ -197,7 +196,6 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
               // Show initial fal.ai transcription
               if (data.text) {
                 setInterimTranscript(data.text);
-                finalText = data.text;
               }
 
               // NOW start Web Speech API with correct language (no restart needed)
