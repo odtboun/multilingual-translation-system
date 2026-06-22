@@ -172,13 +172,14 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
       mediaRecorderRef.current = mr;
       audioChunksRef.current = [];
       let langDetected = false;
-      let detectionDone = false;
+      let wsStarted = false;
+      let finalText = '';
 
       mr.ondataavailable = async (e) => {
         if (e.data.size === 0) return;
         audioChunksRef.current.push(e.data);
 
-        // After ~1.5s of audio, send for language detection
+        // After ~1.5s of audio, detect language THEN start streaming
         if (!langDetected) {
           langDetected = true;
           const partial = new Blob(audioChunksRef.current, { type: mt });
@@ -190,66 +191,60 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
             if (res.ok) {
               const data = await res.json();
               const detectedLang = data.language || 'en';
-              const initialText = data.text || '';
               const bcp47 = LANG_TO_BCP47[detectedLang] || 'en-US';
               setVoiceLang(bcp47);
-              
-              // Show initial transcription immediately
-              if (initialText) {
-                setInterimTranscript(initialText);
+
+              // Show initial fal.ai transcription
+              if (data.text) {
+                setInterimTranscript(data.text);
+                finalText = data.text;
               }
-              
-              // Start Web Speech API with correct language
-              if (recognitionRef.current) {
-                recognitionRef.current.stop();
+
+              // NOW start Web Speech API with correct language (no restart needed)
+              if (voicePhase === 'recording') {
+                startWebSpeech(bcp47);
+                wsStarted = true;
               }
-              retryRef.current = false;
-              detectionDone = true;
-              startWebSpeech(bcp47);
             }
           } catch (err) {
             console.error('Language detection failed:', err);
-            // Fallback: keep Web Speech API with default language
-            detectionDone = true;
+            // Still try Web Speech API with default on error
+            if (voicePhase === 'recording') { startWebSpeech(voiceLang); wsStarted = true; }
           }
         }
       };
 
+      // When Web Speech API produces final text, use it
+      const originalProcessText = processText;
+      
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        // If detection never completed, fall back to full STT
-        if (!detectionDone) {
-          const blob = new Blob(audioChunksRef.current, { type: mt });
+        recognitionRef.current?.stop();
+        
+        // If Web Speech never started (detection too slow), fall back to full STT
+        if (!wsStarted) {
           setVoicePhase('transcribing');
+          const blob = new Blob(audioChunksRef.current, { type: mt });
           try {
             const fd = new FormData(); fd.append('audio', blob, 'recording.webm');
             const res = await fetch(`${API_BASE}/voice/stt`, { method: 'POST', body: fd });
             if (res.ok) {
-              const data = await res.json();
-              if (data.text?.trim()) {
-                setVoicePhase('translating');
-                await processText(data.text.trim());
-              }
+              const d = await res.json();
+              if (d.text?.trim()) { setVoicePhase('translating'); await originalProcessText(d.text.trim()); }
             }
           } catch (e) { console.error('STT failed:', e); }
         }
         setVoicePhase('idle');
       };
 
-      // Start Web Speech API immediately as fallback (will be replaced after detection)
-      const wsOk = startWebSpeech(voiceLang);
-      if (!wsOk) {
-        // No Web Speech API — rely entirely on MediaRecorder + Whisper
-      }
-      
-      mr.start(1000); // request data every 1s
+      mr.start(1000);
       setVoicePhase('recording');
       setInterimTranscript('');
     } catch (e) {
       console.error('Voice pipeline failed:', e);
       setVoicePhase('idle');
     }
-  }, [voiceLang, processText, startWebSpeech]);
+  }, [voiceLang, voicePhase, processText, startWebSpeech]);
 
   const toggleRecording = useCallback(() => {
     if (voicePhase === 'recording') {
