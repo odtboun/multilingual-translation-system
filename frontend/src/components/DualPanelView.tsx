@@ -59,8 +59,6 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
   const rightRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const counterRef = useRef(0);
 
   const metricsRef = useRef(metricsAcc);
@@ -125,16 +123,37 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ─── Voice: buffer → detect language → stream ──────────────
+  // ─── Voice: Web Speech API with in-stream language detection ─
   const retryRef = useRef(false);
-  const langRef = useRef(voiceLang);
-  useEffect(() => { langRef.current = voiceLang; }, [voiceLang]);
+
+  // Quick script detection from text
+  const detectScript = (text: string): string | null => {
+    for (const ch of text) {
+      const cp = ch.codePointAt(0)!;
+      if (0x0600 <= cp && cp <= 0x06FF) return 'ar';
+      if (0x3040 <= cp && cp <= 0x30FF) return 'ja';
+      if (0xAC00 <= cp && cp <= 0xD7AF) return 'ko';
+      if (0x0900 <= cp && cp <= 0x097F) return 'hi';
+      if (0x0400 <= cp && cp <= 0x04FF) return 'ru';
+      if (0x4E00 <= cp && cp <= 0x9FFF) return 'zh';
+    }
+    if (/[çğıöşüÇĞİÖŞÜ]/.test(text)) return 'tr';
+    if (/[ßẞ]/.test(text)) return 'de';
+    if (/[âæœùûÿÀÂÆŒÙ]/.test(text)) return 'fr';
+    if (/[ñÑ¿¡]/.test(text)) return 'es';
+    return null;
+  };
 
   const startWebSpeech = useCallback((lang: string) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return false;
+    if (!SR) {
+      setVoicePhase('idle');
+      return false;
+    }
     const r = new SR();
-    r.continuous = true; r.interimResults = true; r.lang = lang;
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = lang;
 
     r.onresult = (event: SpeechRecognitionEvent) => {
       let interim = '', finalText = '';
@@ -143,119 +162,74 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         if (result.isFinal) finalText += result[0].transcript;
         else interim += result[0].transcript;
       }
+      
+      // Show streaming interim text
       if (interim) setInterimTranscript(interim);
+      
+      // Final text → translate
       if (finalText.trim()) {
         setInterimTranscript('');
         setVoicePhase('translating');
         processText(finalText.trim()).then(() => setVoicePhase('idle'));
+        return;
+      }
+      
+      // Detect language from streaming text, retry if wrong
+      if (interim && !retryRef.current && interim.length > 3) {
+        const detected = detectScript(interim);
+        if (detected) {
+          const currentLang = lang.split('-')[0];
+          if (detected !== currentLang) {
+            retryRef.current = true;
+            r.stop();
+            const newBcp = LANG_TO_BCP47[detected] || lang;
+            setVoiceLang(newBcp);
+            setTimeout(() => startWebSpeech(newBcp), 150);
+          }
+        }
       }
     };
-    r.onerror = () => { retryRef.current = false; setVoicePhase('idle'); };
+
+    r.onerror = () => {
+      retryRef.current = false;
+      if (voicePhase === 'recording') {
+        // Restart on error during active recording
+        setTimeout(() => startWebSpeech(lang), 200);
+      } else {
+        setVoicePhase('idle');
+      }
+    };
+
     r.onend = () => {
       if (voicePhase === 'recording' && !retryRef.current) {
-        setTimeout(() => {
-          if (voicePhase === 'recording') startWebSpeech(langRef.current);
-        }, 100);
+        r.start(); // keep listening during continuous session
       }
     };
+
     recognitionRef.current = r;
     r.start();
     return true;
   }, [voicePhase, processText]);
 
-  // Full voice pipeline: record → detect language → stream
-  const startVoicePipeline = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mt = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-      const mr = new MediaRecorder(stream, { mimeType: mt });
-      mediaRecorderRef.current = mr;
-      audioChunksRef.current = [];
-      let langDetected = false;
-      let wsStarted = false;
-
-      mr.ondataavailable = async (e) => {
-        if (e.data.size === 0) return;
-        audioChunksRef.current.push(e.data);
-
-        // After ~1.5s of audio, detect language THEN start streaming
-        if (!langDetected) {
-          langDetected = true;
-          const partial = new Blob(audioChunksRef.current, { type: mt });
-          setVoicePhase('transcribing');
-          try {
-            const fd = new FormData();
-            fd.append('audio', partial, 'detect.webm');
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 8000);
-            const res = await fetch(`${API_BASE}/voice/detect-language`, {
-              method: 'POST', body: fd, signal: controller.signal
-            });
-            clearTimeout(timeout);
-            if (res.ok) {
-              const data = await res.json();
-              const detectedLang = data.language || 'en';
-              const bcp47 = LANG_TO_BCP47[detectedLang] || 'en-US';
-              setVoiceLang(bcp47);
-              if (data.text) setInterimTranscript(data.text);
-              if (voicePhase === 'recording') { startWebSpeech(bcp47); wsStarted = true; }
-            } else {
-              // API error — fall back to default language
-              if (voicePhase === 'recording') { startWebSpeech(voiceLang); wsStarted = true; }
-            }
-          } catch (err) {
-            console.error('Language detection failed:', err);
-            // Timeout or network error — fall back to default
-            if (voicePhase === 'recording') { startWebSpeech(voiceLang); wsStarted = true; }
-          }
-        }
-      };
-
-      // When Web Speech API produces final text, use it
-      const originalProcessText = processText;
-      
-      mr.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        recognitionRef.current?.stop();
-        
-        // If Web Speech never started (detection too slow), fall back to full STT
-        if (!wsStarted) {
-          setVoicePhase('transcribing');
-          const blob = new Blob(audioChunksRef.current, { type: mt });
-          try {
-            const fd = new FormData(); fd.append('audio', blob, 'recording.webm');
-            const res = await fetch(`${API_BASE}/voice/stt`, { method: 'POST', body: fd });
-            if (res.ok) {
-              const d = await res.json();
-              if (d.text?.trim()) { setVoicePhase('translating'); await originalProcessText(d.text.trim()); }
-            }
-          } catch (e) { console.error('STT failed:', e); }
-        }
-        setVoicePhase('idle');
-      };
-
-      mr.start(1000);
-      setVoicePhase('recording');
-      setInterimTranscript('');
-    } catch (e) {
-      console.error('Voice pipeline failed:', e);
-      setVoicePhase('idle');
-    }
-  }, [voiceLang, voicePhase, processText, startWebSpeech]);
-
   const toggleRecording = useCallback(() => {
     if (voicePhase === 'recording') {
-      // Stop: end recognition + recording
       recognitionRef.current?.stop();
-      if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+      retryRef.current = false;
       if (interimTranscript.trim()) {
-        const t = interimTranscript.trim(); setInterimTranscript('');
-        setVoicePhase('translating'); processText(t).then(() => setVoicePhase('idle'));
-      } else setVoicePhase('idle');
+        const t = interimTranscript.trim();
+        setInterimTranscript('');
+        setVoicePhase('translating');
+        processText(t).then(() => setVoicePhase('idle'));
+      } else {
+        setVoicePhase('idle');
+      }
     } else if (voicePhase === 'idle') {
-      startVoicePipeline();
+      retryRef.current = false;
+      setInterimTranscript('');
+      setVoicePhase('recording');
+      startWebSpeech(voiceLang);
     }
-  }, [voicePhase, startVoicePipeline, interimTranscript, processText]);
+  }, [voicePhase, startWebSpeech, interimTranscript, processText]);
 
   // ─── Determine which speaker a turn belongs to ───────────────
   const getSpeaker = (sourceLang: string): 'A' | 'B' => {
