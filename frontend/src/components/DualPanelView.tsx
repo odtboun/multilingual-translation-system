@@ -186,27 +186,26 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
           try {
             const fd = new FormData();
             fd.append('audio', partial, 'detect.webm');
-            const res = await fetch(`${API_BASE}/voice/detect-language`, { method: 'POST', body: fd });
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+            const res = await fetch(`${API_BASE}/voice/detect-language`, {
+              method: 'POST', body: fd, signal: controller.signal
+            });
+            clearTimeout(timeout);
             if (res.ok) {
               const data = await res.json();
               const detectedLang = data.language || 'en';
               const bcp47 = LANG_TO_BCP47[detectedLang] || 'en-US';
               setVoiceLang(bcp47);
-
-              // Show initial fal.ai transcription
-              if (data.text) {
-                setInterimTranscript(data.text);
-              }
-
-              // NOW start Web Speech API with correct language (no restart needed)
-              if (voicePhase === 'recording') {
-                startWebSpeech(bcp47);
-                wsStarted = true;
-              }
+              if (data.text) setInterimTranscript(data.text);
+              if (voicePhase === 'recording') { startWebSpeech(bcp47); wsStarted = true; }
+            } else {
+              // API error — fall back to default language
+              if (voicePhase === 'recording') { startWebSpeech(voiceLang); wsStarted = true; }
             }
           } catch (err) {
             console.error('Language detection failed:', err);
-            // Still try Web Speech API with default on error
+            // Timeout or network error — fall back to default
             if (voicePhase === 'recording') { startWebSpeech(voiceLang); wsStarted = true; }
           }
         }
