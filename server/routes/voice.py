@@ -21,10 +21,10 @@ def _fal_headers():
     }
 
 
-async def _poll_fal(url: str, timeout: float = 30.0):
+async def _poll_fal(url: str, payload: dict, timeout: float = 30.0):
     """Submit to fal.ai queue and poll until complete."""
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
-        resp = await client.post(url, json={}, headers=_fal_headers())
+        resp = await client.post(url, json=payload, headers=_fal_headers())
         if resp.status_code != 200:
             raise HTTPException(status_code=resp.status_code, detail=f"FAL error: {resp.text}")
         result_url = resp.json().get("status_url")
@@ -44,8 +44,8 @@ async def stt(audio: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     content = await audio.read()
     audio_url = f"data:{audio.content_type};base64,{base64.b64encode(content).decode()}"
-    payload = {"audio_url": audio_url, "task": "transcribe"}
-    result = await _poll_fal("https://queue.fal.run/fal-ai/whisper")
+    result = await _poll_fal("https://queue.fal.run/fal-ai/whisper",
+                             {"audio_url": audio_url, "task": "transcribe"})
     return {"text": result.get("text", "")}
 
 
@@ -54,24 +54,20 @@ async def tts(request: TTSRequest):
     """Generate speech using ElevenLabs on fal.ai."""
     if not settings.FAL_KEY:
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
-    result = await _poll_fal("https://queue.fal.run/fal-ai/elevenlabs/tts/turbo-v2.5")
+    result = await _poll_fal("https://queue.fal.run/fal-ai/elevenlabs/tts/turbo-v2.5",
+                             {"text": request.text})
     return {"audio_url": result["audio"]["url"]}
 
 
 @router.post("/detect-language")
 async def detect_language_endpoint(audio: UploadFile = File(...)):
-    """Detect language from ~1.5s audio chunk using fal.ai wizper.
-
-    Returns detected language code and initial transcription.
-    """
+    """Detect language from ~1.5s audio chunk using fal.ai wizper."""
     if not settings.FAL_KEY:
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
-
     content = await audio.read()
     audio_url = f"data:{audio.content_type};base64,{base64.b64encode(content).decode()}"
-    payload = {"audio_url": audio_url, "task": "transcribe", "language": None}
-
-    result = await _poll_fal("https://queue.fal.run/fal-ai/wizper")
+    result = await _poll_fal("https://queue.fal.run/fal-ai/wizper",
+                             {"audio_url": audio_url, "task": "transcribe", "language": None})
     return {
         "language": (result.get("language") or "en").lower().strip(),
         "text": (result.get("text") or "").strip(),
