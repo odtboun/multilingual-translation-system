@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: aviation-translation-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: FAL_KEY
+        sync: false
+      - key: DEFAULT_MODEL
+        value: google/gemini-2.5-flash
+      - key: FALLBACK_MODEL
+        value: anthropic/claude-sonnet-4
+      - key: PORT
+        value: "8000"
+    plan: free
