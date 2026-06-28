@@ -8,7 +8,7 @@ import { TranslationDisplay } from './TranslationDisplay';
 import { DEMO_SCRIPT, type DemoStep } from '../data/demoScript';
 import { LANGUAGE_NAMES, type TranslationResult } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 const HIGHLIGHT_ICONS = { context: Sparkles, guard: Shield, multilang: Globe, emergency: AlertTriangle };
 const HIGHLIGHT_COLORS: Record<string, string> = {
   context: 'text-aviation bg-aviation-light border-aviation/20',

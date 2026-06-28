@@ -4,7 +4,7 @@ import { TranslationDisplay } from './TranslationDisplay';
 import { InputArea } from './InputArea';
 import { LANGUAGE_NAMES, DEMO_FLIGHT, type Touchpoint, type TranslationResult } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 export function OperatorTerminal({ onMetrics }: { onMetrics: (m: { count: number; latency: number; guardRate: string }) => void }) {
   const [touchpoint, setTouchpoint] = useState<Touchpoint>('BOARDING');

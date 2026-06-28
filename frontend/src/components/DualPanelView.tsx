@@ -14,7 +14,7 @@ interface Turn {
   loading: boolean;
 }
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 function PanelRow({ text, speaker }: { text: string; speaker: 'A' | 'B' }) {
   const bg = speaker === 'A' ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200';
