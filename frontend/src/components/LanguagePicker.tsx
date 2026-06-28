@@ -8,7 +8,7 @@ export interface LanguageOption {
   bcp47: string;   // Web Speech API code, e.g. "tr-TR"
 }
 
-// All languages our system supports, in their native names
+// All 32 languages supported by ElevenLabs Turbo v2.5, in native names
 export const ALL_LANGUAGES: LanguageOption[] = [
   { code: 'en', name: 'English', bcp47: 'en-US' },
   { code: 'tr', name: 'Türkçe', bcp47: 'tr-TR' },
@@ -20,11 +20,28 @@ export const ALL_LANGUAGES: LanguageOption[] = [
   { code: 'nl', name: 'Nederlands', bcp47: 'nl-NL' },
   { code: 'ru', name: 'Русский', bcp47: 'ru-RU' },
   { code: 'ar', name: 'العربية', bcp47: 'ar-SA' },
-  { code: 'fa', name: 'فارسی', bcp47: 'fa-IR' },
   { code: 'zh', name: '中文', bcp47: 'zh-CN' },
   { code: 'ja', name: '日本語', bcp47: 'ja-JP' },
   { code: 'ko', name: '한국어', bcp47: 'ko-KR' },
   { code: 'hi', name: 'हिन्दी', bcp47: 'hi-IN' },
+  { code: 'id', name: 'Indonesia', bcp47: 'id-ID' },
+  { code: 'pl', name: 'Polski', bcp47: 'pl-PL' },
+  { code: 'sv', name: 'Svenska', bcp47: 'sv-SE' },
+  { code: 'bg', name: 'Български', bcp47: 'bg-BG' },
+  { code: 'ro', name: 'Română', bcp47: 'ro-RO' },
+  { code: 'cs', name: 'Čeština', bcp47: 'cs-CZ' },
+  { code: 'el', name: 'Ελληνικά', bcp47: 'el-GR' },
+  { code: 'fi', name: 'Suomi', bcp47: 'fi-FI' },
+  { code: 'hr', name: 'Hrvatski', bcp47: 'hr-HR' },
+  { code: 'ms', name: 'Melayu', bcp47: 'ms-MY' },
+  { code: 'sk', name: 'Slovenčina', bcp47: 'sk-SK' },
+  { code: 'da', name: 'Dansk', bcp47: 'da-DK' },
+  { code: 'ta', name: 'தமிழ்', bcp47: 'ta-IN' },
+  { code: 'uk', name: 'Українська', bcp47: 'uk-UA' },
+  { code: 'hu', name: 'Magyar', bcp47: 'hu-HU' },
+  { code: 'no', name: 'Norsk', bcp47: 'nb-NO' },
+  { code: 'vi', name: 'Tiếng Việt', bcp47: 'vi-VN' },
+  { code: 'tl', name: 'Filipino', bcp47: 'fil-PH' },
 ];
 
 interface LanguagePickerProps {
