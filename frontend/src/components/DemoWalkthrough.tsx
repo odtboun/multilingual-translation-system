@@ -17,7 +17,7 @@ const HIGHLIGHT_COLORS: Record<string, string> = {
   emergency: 'text-danger bg-danger-bg border-danger/20',
 };
 
-export function DemoWalkthrough() {
+export function DemoWalkthrough({ onComplete }: { onComplete?: () => void }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState<TranslationResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,7 +70,7 @@ export function DemoWalkthrough() {
           <div className="flex items-center gap-1.5">
             {DEMO_SCRIPT.map((_, i) => (<div key={i} className={`h-2 rounded-full transition-all duration-300 ${i === stepIndex ? 'bg-aviation w-5' : 'bg-border w-2'}`} />))}
           </div>
-          <Button onClick={() => { if (!isLast) { const i = stepIndex + 1; setStepIndex(i); runTranslation(DEMO_SCRIPT[i]); } }} disabled={isLast} icon={<ArrowRight size={15} />}>{isLast ? 'Complete' : 'Next'}</Button>
+          <Button onClick={() => { if (isLast) { onComplete?.(); } else { const i = stepIndex + 1; setStepIndex(i); runTranslation(DEMO_SCRIPT[i]); } }} icon={isLast ? undefined : <ArrowRight size={15} />}>{isLast ? 'Finish' : 'Next'}</Button>
         </div>
       </div>
       <div className="w-[360px] border-l border-border bg-surface flex flex-col shrink-0">
