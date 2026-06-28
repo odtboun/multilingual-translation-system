@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Send, Keyboard, Mic } from 'lucide-react';
 import { ContextHeader } from './ContextHeader';
-import { VoiceButton, type VoicePhase } from './VoiceButton';
+import { DualMicInput } from './DualMicInput';
 import { Button } from './ui/Button';
-import { DEMO_FLIGHT, LANG_TO_BCP47, LANGUAGE_NAMES, type Touchpoint, type TranslationResult } from '../types';
+import { DEMO_FLIGHT, LANGUAGE_NAMES, type Touchpoint, type TranslationResult } from '../types';
 
 interface Turn {
   id: number;
@@ -15,26 +15,13 @@ interface Turn {
 }
 
 const API_BASE = '/api';
-const LANG_NAMES: Record<string, string> = {
-  tr: 'Turkish', en: 'English', ar: 'Arabic', ru: 'Russian',
-  de: 'German', fr: 'French', zh: 'Chinese', es: 'Spanish',
-  it: 'Italian', fa: 'Persian', ja: 'Japanese', ko: 'Korean',
-  pt: 'Portuguese', nl: 'Dutch',
-};
 
-// Speaker colors — soft backgrounds
-const SPEAKER_A_BG = 'bg-blue-50 border-blue-200';
-const SPEAKER_B_BG = 'bg-orange-50 border-orange-200';
-
-/** A single row inside a language panel. */
 function PanelRow({ text, speaker }: { text: string; speaker: 'A' | 'B' }) {
-  const bg = speaker === 'A' ? SPEAKER_A_BG : SPEAKER_B_BG;
+  const bg = speaker === 'A' ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200';
   const align = speaker === 'A' ? 'self-start rounded-bl-md' : 'self-end rounded-br-md';
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
       className={`${align} max-w-[85%] px-4 py-2.5 rounded-2xl border ${bg}`}
     >
@@ -48,38 +35,28 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
   const [turns, setTurns] = useState<Turn[]>([]);
   const [mode, setMode] = useState<'voice' | 'text'>('text');
   const [text, setText] = useState('');
-  const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle');
-  const [interimTranscript, setInterimTranscript] = useState('');
-  const [voiceLang, setVoiceLang] = useState('tr-TR'); // default Turkish (airport context)
-  const [langA, setLangA] = useState<string | null>(null); // detected language for speaker A
-  const [langB, setLangB] = useState<string | null>(null); // detected language for speaker B
+  const [langA, setLangA] = useState<string | null>(null);
+  const [langB, setLangB] = useState<string | null>(null);
   const [metricsAcc, setMetricsAcc] = useState({ count: 0, totalLatency: 0, corrections: 0 });
+  const metricsRef = useRef(metricsAcc);
+  useEffect(() => { metricsRef.current = metricsAcc; }, [metricsAcc]);
 
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const counterRef = useRef(0);
 
-  const metricsRef = useRef(metricsAcc);
-  useEffect(() => { metricsRef.current = metricsAcc; }, [metricsAcc]);
-
-  // Auto-scroll both panels
   useEffect(() => {
     leftRef.current?.scrollTo({ top: leftRef.current.scrollHeight, behavior: 'smooth' });
     rightRef.current?.scrollTo({ top: rightRef.current.scrollHeight, behavior: 'smooth' });
   }, [turns]);
 
-  // Auto-assign languages from detected source langs
   const assignLanguages = useCallback((detectedLang: string) => {
-    if (!langA && !langB) {
-      setLangA(detectedLang);
-    } else if (langA && !langB && detectedLang !== langA) {
-      setLangB(detectedLang);
-    }
+    if (!langA && !langB) setLangA(detectedLang);
+    else if (langA && !langB && detectedLang !== langA) setLangB(detectedLang);
   }, [langA, langB]);
 
-  // ─── Core: send text, get translation, append to turns ──────
+  // ─── Process text (from text input or voice) ─────────────────
   const processText = useCallback(async (input: string) => {
     const id = ++counterRef.current;
     const newTurn: Turn = { id, sourceText: input, sourceLang: 'tr', result: null, loading: true };
@@ -92,13 +69,9 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
       });
       const data: TranslationResult = await res.json();
       const detected = data.source_lang || 'en';
-
       setTurns(prev => prev.map(t => t.id === id ? { ...t, sourceLang: detected, result: data, loading: false } : t));
       assignLanguages(detected);
-      // Update voice recognition language based on detected language
-      setVoiceLang(LANG_TO_BCP47[detected] || 'en-US');
 
-      // Metrics
       setMetricsAcc(prev => {
         const nc = prev.count + 1;
         const nl = prev.totalLatency + data.latency_ms;
@@ -123,115 +96,10 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ─── Voice: Web Speech API with in-stream language detection ─
-  const retryRef = useRef(false);
+  const handleVoiceText = useCallback((voiceText: string) => {
+    processText(voiceText);
+  }, [processText]);
 
-  // Quick script detection from text
-  const detectScript = (text: string): string | null => {
-    for (const ch of text) {
-      const cp = ch.codePointAt(0)!;
-      if (0x0600 <= cp && cp <= 0x06FF) return 'ar';
-      if (0x3040 <= cp && cp <= 0x30FF) return 'ja';
-      if (0xAC00 <= cp && cp <= 0xD7AF) return 'ko';
-      if (0x0900 <= cp && cp <= 0x097F) return 'hi';
-      if (0x0400 <= cp && cp <= 0x04FF) return 'ru';
-      if (0x4E00 <= cp && cp <= 0x9FFF) return 'zh';
-    }
-    if (/[çğıöşüÇĞİÖŞÜ]/.test(text)) return 'tr';
-    if (/[ßẞ]/.test(text)) return 'de';
-    if (/[âæœùûÿÀÂÆŒÙ]/.test(text)) return 'fr';
-    if (/[ñÑ¿¡]/.test(text)) return 'es';
-    return null;
-  };
-
-  const startWebSpeech = useCallback((lang: string) => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      setVoicePhase('idle');
-      return false;
-    }
-    const r = new SR();
-    r.continuous = true;
-    r.interimResults = true;
-    r.lang = lang;
-
-    r.onresult = (event: SpeechRecognitionEvent) => {
-      let interim = '', finalText = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) finalText += result[0].transcript;
-        else interim += result[0].transcript;
-      }
-      
-      // Show streaming interim text
-      if (interim) setInterimTranscript(interim);
-      
-      // Final text → translate
-      if (finalText.trim()) {
-        setInterimTranscript('');
-        setVoicePhase('translating');
-        processText(finalText.trim()).then(() => setVoicePhase('idle'));
-        return;
-      }
-      
-      // Detect language from streaming text, retry if wrong
-      if (interim && !retryRef.current && interim.length > 3) {
-        const detected = detectScript(interim);
-        if (detected) {
-          const currentLang = lang.split('-')[0];
-          if (detected !== currentLang) {
-            retryRef.current = true;
-            r.stop();
-            const newBcp = LANG_TO_BCP47[detected] || lang;
-            setVoiceLang(newBcp);
-            setTimeout(() => startWebSpeech(newBcp), 150);
-          }
-        }
-      }
-    };
-
-    r.onerror = () => {
-      retryRef.current = false;
-      if (voicePhase === 'recording') {
-        // Restart on error during active recording
-        setTimeout(() => startWebSpeech(lang), 200);
-      } else {
-        setVoicePhase('idle');
-      }
-    };
-
-    r.onend = () => {
-      if (voicePhase === 'recording' && !retryRef.current) {
-        r.start(); // keep listening during continuous session
-      }
-    };
-
-    recognitionRef.current = r;
-    r.start();
-    return true;
-  }, [voicePhase, processText]);
-
-  const toggleRecording = useCallback(() => {
-    if (voicePhase === 'recording') {
-      recognitionRef.current?.stop();
-      retryRef.current = false;
-      if (interimTranscript.trim()) {
-        const t = interimTranscript.trim();
-        setInterimTranscript('');
-        setVoicePhase('translating');
-        processText(t).then(() => setVoicePhase('idle'));
-      } else {
-        setVoicePhase('idle');
-      }
-    } else if (voicePhase === 'idle') {
-      retryRef.current = false;
-      setInterimTranscript('');
-      setVoicePhase('recording');
-      startWebSpeech(voiceLang);
-    }
-  }, [voicePhase, startWebSpeech, interimTranscript, processText]);
-
-  // ─── Determine which speaker a turn belongs to ───────────────
   const getSpeaker = (sourceLang: string): 'A' | 'B' => {
     if (langA && sourceLang === langA) return 'A';
     if (langB && sourceLang === langB) return 'B';
@@ -239,17 +107,16 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
     return 'A';
   };
 
-  const panelALabel = langA ? LANG_NAMES[langA] || langA : 'Language A';
-  const panelBLabel = langB ? LANG_NAMES[langB] || langB : 'Language B';
+  const panelALabel = langA ? (LANGUAGE_NAMES[langA] || langA) : 'Language A';
+  const panelBLabel = langB ? (LANGUAGE_NAMES[langB] || langB) : 'Language B';
 
-  // ─── Render ──────────────────────────────────────────────────
   return (
     <div className="h-full flex flex-col">
       <ContextHeader touchpoint={touchpoint} onTouchpointChange={setTouchpoint} flight={DEMO_FLIGHT}
         sourceLang="auto" targetLang="auto" onSwapLanguages={() => {}} />
 
+      {/* Dual panels */}
       <div className="flex-1 flex divide-x divide-border overflow-hidden">
-        {/* Panel: Language A */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="px-4 py-2 border-b border-border bg-subtle shrink-0 text-center">
             <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{panelALabel}</p>
@@ -257,18 +124,14 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
           <div ref={leftRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
             {turns.length === 0 ? (
               <div className="flex items-center justify-center h-full text-text-tertiary text-xs">—</div>
-            ) : (
-              turns.map(t => {
-                const speaker = getSpeaker(t.sourceLang);
-                const textInLangA = t.sourceLang === langA ? t.sourceText : (t.result?.translation || '');
-                if (!textInLangA && t.loading) return null;
-                return <PanelRow key={t.id} text={textInLangA || '...'} speaker={speaker} />;
-              })
-            )}
+            ) : turns.map(t => {
+              const speaker = getSpeaker(t.sourceLang);
+              const textInLangA = t.sourceLang === langA ? t.sourceText : (t.result?.translation || '');
+              if (!textInLangA && t.loading) return null;
+              return <PanelRow key={t.id} text={textInLangA || '...'} speaker={speaker} />;
+            })}
           </div>
         </div>
-
-        {/* Panel: Language B */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="px-4 py-2 border-b border-border bg-subtle shrink-0 text-center">
             <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{panelBLabel}</p>
@@ -276,14 +139,12 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
           <div ref={rightRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
             {turns.length === 0 ? (
               <div className="flex items-center justify-center h-full text-text-tertiary text-xs">—</div>
-            ) : (
-              turns.map(t => {
-                const speaker = getSpeaker(t.sourceLang);
-                const textInLangB = t.sourceLang === langB ? t.sourceText : (t.result?.translation || '');
-                if (!textInLangB && t.loading) return null;
-                return <PanelRow key={t.id} text={textInLangB || '...'} speaker={speaker} />;
-              })
-            )}
+            ) : turns.map(t => {
+              const speaker = getSpeaker(t.sourceLang);
+              const textInLangB = t.sourceLang === langB ? t.sourceText : (t.result?.translation || '');
+              if (!textInLangB && t.loading) return null;
+              return <PanelRow key={t.id} text={textInLangB || '...'} speaker={speaker} />;
+            })}
           </div>
         </div>
       </div>
@@ -293,37 +154,25 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
         <div className="max-w-2xl mx-auto">
           <div className="flex justify-center mb-3">
             <div className="flex bg-subtle rounded-lg p-0.5">
-              <button onClick={() => setMode('voice')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${mode === 'voice' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
+              <button onClick={() => setMode('voice')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${mode === 'voice' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
                 <Mic size={15} />Voice
               </button>
-              <button onClick={() => setMode('text')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${mode === 'text' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
+              <button onClick={() => setMode('text')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${mode === 'text' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
                 <Keyboard size={15} />Text
               </button>
             </div>
           </div>
+
           {mode === 'voice' ? (
-            <div className="flex flex-col items-center py-2">
-              <VoiceButton phase={voicePhase} onToggle={toggleRecording} />
-              <AnimatePresence>
-                {interimTranscript && (
-                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                    className="mt-3 px-4 py-2 rounded-lg bg-aviation-light/50 border border-aviation/10 max-w-md">
-                    <p className="text-sm text-text-primary leading-relaxed">{interimTranscript}<span className="inline-block w-1 h-4 bg-aviation ml-0.5 animate-pulse align-middle" /></p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <p className="mt-2 text-xs text-text-tertiary text-center">
-                Listening in{' '}
-                <span className="font-medium text-text-secondary">{LANGUAGE_NAMES[voiceLang.split('-')[0]] || voiceLang}</span>
-                {' '}· auto-switching
-              </p>
-            </div>
+            <DualMicInput onVoiceText={handleVoiceText} disabled={false} />
           ) : (
             <div className="flex items-end gap-3">
               <textarea ref={inputRef} value={text} onChange={e => setText(e.target.value)} onKeyDown={handleKeyDown}
-                placeholder="Type in Turkish or English..." disabled={voicePhase !== 'idle'} rows={2}
-                className="flex-1 px-4 py-2.5 text-sm rounded-lg bg-surface border border-border text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-aviation/20 focus:border-aviation transition-all duration-150 resize-none disabled:opacity-50" />
-              <Button onClick={handleSend} disabled={!text.trim() || voicePhase !== 'idle'} loading={voicePhase !== 'idle'} icon={<Send size={15} />} size="lg">Send</Button>
+                placeholder="Type in Turkish or English..." rows={2}
+                className="flex-1 px-4 py-2.5 text-sm rounded-lg bg-surface border border-border text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-aviation/20 focus:border-aviation transition-all duration-150 resize-none" />
+              <Button onClick={handleSend} disabled={!text.trim()} icon={<Send size={15} />} size="lg">Send</Button>
             </div>
           )}
         </div>
