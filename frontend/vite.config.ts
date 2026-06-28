@@ -4,6 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/realtime-translation/',
+  base: process.env.NODE_ENV === 'production' ? '/realtime-translation/' : '/',
   server: { proxy: { '/api': 'http://localhost:8000' } }
 })
