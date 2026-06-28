@@ -50,11 +50,21 @@ async def lifespan(app: FastAPI):
     print("  Translation system shut down.")
 
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title="Aviation Translation System",
     description="Real-time multilingual translation for aviation ground operations",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Routes ---
