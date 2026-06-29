@@ -1,0 +1,732 @@
+# Aviation Ground Handling Terminology — Core Glossary
+# Structure: per TERMINOLOGY.md spec
+# Priority: CRITICAL = safety/compliance, HIGH = operational, MEDIUM = common phrases
+#
+# Context tags: CHECK_IN, SECURITY, PASSPORT, BOARDING, GATE, TRANSFER,
+#               BAGGAGE, DELAY, IRREGULAR, DIRECTIONS, EMERGENCY
+
+terms:
+
+  # ============================================================
+  # DOCUMENTS
+  # ============================================================
+  - id: TRM-0001
+    term_tr: "biniş kartı"
+    term_en: "boarding pass"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING, GATE, SECURITY]
+    forbidden_alternatives: ["boarding card", "boarding ticket", "flight ticket", "ticket"]
+    category: DOCUMENT
+    priority: CRITICAL
+    examples:
+      - context: CHECK_IN
+        usage_tr: "Biniş kartınızı ve pasaportunuzu hazırlayın lütfen."
+        usage_en: "Please have your boarding pass and passport ready."
+      - context: BOARDING
+        usage_tr: "Biniş kartınızı okutunuz."
+        usage_en: "Please scan your boarding pass."
+
+  - id: TRM-0002
+    term_tr: "pasaport"
+    term_en: "passport"
+    canonical: true
+    context_tags: [CHECK_IN, PASSPORT, SECURITY]
+    forbidden_alternatives: []
+    category: DOCUMENT
+    priority: CRITICAL
+
+  - id: TRM-0003
+    term_tr: "kimlik"
+    term_en: "identification"
+    canonical: true
+    context_tags: [CHECK_IN, PASSPORT, SECURITY]
+    forbidden_alternatives: ["ID card"]
+    category: DOCUMENT
+    priority: HIGH
+
+  - id: TRM-0004
+    term_tr: "vize"
+    term_en: "visa"
+    canonical: true
+    context_tags: [PASSPORT]
+    forbidden_alternatives: []
+    category: DOCUMENT
+    priority: CRITICAL
+
+  - id: TRM-0005
+    term_tr: "oturma izni"
+    term_en: "residence permit"
+    canonical: true
+    context_tags: [PASSPORT]
+    forbidden_alternatives: ["residence card", "green card"]
+    category: DOCUMENT
+    priority: HIGH
+
+  # ============================================================
+  # BOARDING
+  # ============================================================
+  - id: TRM-0010
+    term_tr: "biniş"
+    term_en: "boarding"
+    canonical: true
+    context_tags: [BOARDING, GATE]
+    forbidden_alternatives: ["embarkation", "getting on"]
+    category: BOARDING
+    priority: CRITICAL
+
+  - id: TRM-0011
+    term_tr: "sıra"
+    term_en: "row"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["line", "seat row"]
+    category: BOARDING
+    priority: CRITICAL
+    examples:
+      - context: BOARDING
+        usage_tr: "15 ile 25. sıralar arasındaki yolcular biniş yapabilir."
+        usage_en: "Passengers in rows 15 through 25 may now board."
+
+  - id: TRM-0012
+    term_tr: "biniş sırası"
+    term_en: "boarding sequence"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["boarding order", "boarding line"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0013
+    term_tr: "son çağrı"
+    term_en: "final call"
+    canonical: true
+    context_tags: [BOARDING, GATE]
+    forbidden_alternatives: ["last call", "final announcement"]
+    category: BOARDING
+    priority: CRITICAL
+    examples:
+      - context: BOARDING
+        usage_tr: "Son çağrı, kapı kapanıyor."
+        usage_en: "Final call. The gate is now closing."
+
+  - id: TRM-0014
+    term_tr: "yolcu köprüsü"
+    term_en: "jet bridge"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["jetway", "bridge", "walkway", "tunnel"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0015
+    term_tr: "koltuk"
+    term_en: "seat"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING]
+    forbidden_alternatives: ["chair", "place"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0016
+    term_tr: "koltuk numarası"
+    term_en: "seat number"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING]
+    forbidden_alternatives: ["seat assignment"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0017
+    term_tr: "bölge"
+    term_en: "zone"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["area", "section"]
+    category: BOARDING
+    priority: HIGH
+
+  # ============================================================
+  # GATE & FLIGHT
+  # ============================================================
+  - id: TRM-0020
+    term_tr: "kapı"
+    term_en: "gate"
+    canonical: true
+    context_tags: [GATE, BOARDING, TRANSFER, DIRECTIONS]
+    forbidden_alternatives: ["door", "exit"]
+    category: GATE
+    priority: CRITICAL
+
+  - id: TRM-0021
+    term_tr: "kapı değişikliği"
+    term_en: "gate change"
+    canonical: true
+    context_tags: [GATE, BOARDING, DELAY]
+    forbidden_alternatives: ["gate switch", "gate moved"]
+    category: GATE
+    priority: CRITICAL
+    examples:
+      - context: GATE
+        usage_tr: "Kapınız A12'den B04'e değiştirilmiştir."
+        usage_en: "Your gate has been changed from A12 to B04."
+
+  - id: TRM-0022
+    term_tr: "sefer"
+    term_en: "flight"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING, GATE, DELAY, IRREGULAR]
+    forbidden_alternatives: ["trip", "journey"]
+    category: FLIGHT
+    priority: CRITICAL
+
+  - id: TRM-0023
+    term_tr: "kalkış"
+    term_en: "departure"
+    canonical: true
+    context_tags: [CHECK_IN, GATE, DELAY]
+    forbidden_alternatives: ["takeoff", "leaving"]
+    category: FLIGHT
+    priority: HIGH
+
+  - id: TRM-0024
+    term_tr: "varış"
+    term_en: "arrival"
+    canonical: true
+    context_tags: [TRANSFER, BAGGAGE]
+    forbidden_alternatives: ["landing", "coming"]
+    category: FLIGHT
+    priority: HIGH
+
+  - id: TRM-0025
+    term_tr: "tahmini kalkış saati"
+    term_en: "estimated departure time"
+    canonical: true
+    context_tags: [GATE, DELAY]
+    forbidden_alternatives: ["expected departure", "approx departure"]
+    category: FLIGHT
+    priority: HIGH
+
+  # ============================================================
+  # CHECK-IN
+  # ============================================================
+  - id: TRM-0030
+    term_tr: "check-in"
+    term_en: "check-in"
+    canonical: true
+    context_tags: [CHECK_IN]
+    forbidden_alternatives: ["registration", "sign-in"]
+    category: CHECK_IN
+    priority: CRITICAL
+
+  - id: TRM-0031
+    term_tr: "check-in kontuarı"
+    term_en: "check-in counter"
+    canonical: true
+    context_tags: [CHECK_IN, DIRECTIONS]
+    forbidden_alternatives: ["check-in desk", "registration desk"]
+    category: CHECK_IN
+    priority: HIGH
+
+  - id: TRM-0032
+    term_tr: "koltuk seçimi"
+    term_en: "seat selection"
+    canonical: true
+    context_tags: [CHECK_IN]
+    forbidden_alternatives: ["seat choice", "seat picking"]
+    category: CHECK_IN
+    priority: MEDIUM
+
+  - id: TRM-0033
+    term_tr: "pencere kenarı"
+    term_en: "window seat"
+    canonical: true
+    context_tags: [CHECK_IN]
+    forbidden_alternatives: ["window side", "by the window"]
+    category: CHECK_IN
+    priority: MEDIUM
+
+  - id: TRM-0034
+    term_tr: "koridor kenarı"
+    term_en: "aisle seat"
+    canonical: true
+    context_tags: [CHECK_IN]
+    forbidden_alternatives: ["aisle side", "corridor seat"]
+    category: CHECK_IN
+    priority: MEDIUM
+
+  # ============================================================
+  # BAGGAGE
+  # ============================================================
+  - id: TRM-0040
+    term_tr: "bagaj"
+    term_en: "baggage"
+    canonical: true
+    context_tags: [CHECK_IN, BAGGAGE]
+    forbidden_alternatives: ["luggage", "bags"]
+    category: BAGGAGE
+    priority: CRITICAL
+
+  - id: TRM-0041
+    term_tr: "el bagajı"
+    term_en: "carry-on baggage"
+    canonical: true
+    context_tags: [CHECK_IN, SECURITY, BOARDING]
+    forbidden_alternatives: ["hand luggage", "hand baggage", "cabin bag"]
+    category: BAGGAGE
+    priority: HIGH
+
+  - id: TRM-0042
+    term_tr: "bagaj hakkı"
+    term_en: "baggage allowance"
+    canonical: true
+    context_tags: [CHECK_IN]
+    forbidden_alternatives: ["luggage allowance", "bag limit"]
+    category: BAGGAGE
+    priority: HIGH
+
+  - id: TRM-0043
+    term_tr: "fazla bagaj"
+    term_en: "excess baggage"
+    canonical: true
+    context_tags: [CHECK_IN]
+    forbidden_alternatives: ["extra luggage", "overweight baggage"]
+    category: BAGGAGE
+    priority: HIGH
+
+  - id: TRM-0044
+    term_tr: "bagaj bandı"
+    term_en: "baggage carousel"
+    canonical: true
+    context_tags: [BAGGAGE]
+    forbidden_alternatives: ["luggage belt", "conveyor belt", "baggage belt"]
+    category: BAGGAGE
+    priority: HIGH
+
+  - id: TRM-0045
+    term_tr: "kayıp bagaj"
+    term_en: "lost baggage"
+    canonical: true
+    context_tags: [BAGGAGE]
+    forbidden_alternatives: ["missing luggage", "lost luggage"]
+    category: BAGGAGE
+    priority: CRITICAL
+
+  - id: TRM-0046
+    term_tr: "bagaj teslim"
+    term_en: "baggage claim"
+    canonical: true
+    context_tags: [BAGGAGE, DIRECTIONS]
+    forbidden_alternatives: ["luggage claim", "baggage retrieval"]
+    category: BAGGAGE
+    priority: HIGH
+
+  # ============================================================
+  # SECURITY
+  # ============================================================
+  - id: TRM-0050
+    term_tr: "güvenlik kontrolü"
+    term_en: "security screening"
+    canonical: true
+    context_tags: [SECURITY, DIRECTIONS]
+    forbidden_alternatives: ["security check", "security inspection"]
+    category: SECURITY
+    priority: CRITICAL
+
+  - id: TRM-0051
+    term_tr: "metal dedektör"
+    term_en: "metal detector"
+    canonical: true
+    context_tags: [SECURITY]
+    forbidden_alternatives: ["metal scanner"]
+    category: SECURITY
+    priority: HIGH
+
+  - id: TRM-0052
+    term_tr: "sıvı"
+    term_en: "liquids"
+    canonical: true
+    context_tags: [SECURITY]
+    forbidden_alternatives: ["fluids"]
+    category: SECURITY
+    priority: HIGH
+
+  - id: TRM-0053
+    term_tr: "tepsi"
+    term_en: "tray"
+    canonical: true
+    context_tags: [SECURITY]
+    forbidden_alternatives: ["bin", "container"]
+    category: SECURITY
+    priority: MEDIUM
+
+  - id: TRM-0054
+    term_tr: "kemer"
+    term_en: "belt"
+    canonical: true
+    context_tags: [SECURITY]
+    forbidden_alternatives: []
+    category: SECURITY
+    priority: MEDIUM
+
+  - id: TRM-0055
+    term_tr: "elektronik cihaz"
+    term_en: "electronic device"
+    canonical: true
+    context_tags: [SECURITY]
+    forbidden_alternatives: ["electronics", "gadget"]
+    category: SECURITY
+    priority: HIGH
+
+  # ============================================================
+  # TRANSFER
+  # ============================================================
+  - id: TRM-0060
+    term_tr: "aktarma"
+    term_en: "transfer"
+    canonical: true
+    context_tags: [TRANSFER]
+    forbidden_alternatives: ["connection", "transit", "layover"]
+    category: TRANSFER
+    priority: CRITICAL
+
+  - id: TRM-0061
+    term_tr: "aktarma yolcusu"
+    term_en: "transfer passenger"
+    canonical: true
+    context_tags: [TRANSFER]
+    forbidden_alternatives: ["connecting passenger", "transit passenger"]
+    category: TRANSFER
+    priority: HIGH
+
+  - id: TRM-0062
+    term_tr: "bağlantı uçuş"
+    term_en: "connecting flight"
+    canonical: true
+    context_tags: [TRANSFER]
+    forbidden_alternatives: ["next flight", "onward flight"]
+    category: TRANSFER
+    priority: CRITICAL
+
+  - id: TRM-0063
+    term_tr: "aktarma masası"
+    term_en: "transfer desk"
+    canonical: true
+    context_tags: [TRANSFER, DIRECTIONS]
+    forbidden_alternatives: ["connection desk", "transit desk"]
+    category: TRANSFER
+    priority: HIGH
+
+  - id: TRM-0064
+    term_tr: "terminal değişikliği"
+    term_en: "terminal change"
+    canonical: true
+    context_tags: [TRANSFER, DIRECTIONS]
+    forbidden_alternatives: ["terminal switch"]
+    category: TRANSFER
+    priority: HIGH
+
+  # ============================================================
+  # DELAY & IRREGULAR OPERATIONS
+  # ============================================================
+  - id: TRM-0070
+    term_tr: "rötar"
+    term_en: "delay"
+    canonical: true
+    context_tags: [DELAY, GATE, IRREGULAR]
+    forbidden_alternatives: ["late", "postponed"]
+    category: DELAY
+    priority: CRITICAL
+
+  - id: TRM-0071
+    term_tr: "iptal"
+    term_en: "cancellation"
+    canonical: true
+    context_tags: [IRREGULAR]
+    forbidden_alternatives: ["cancelled flight", "called off"]
+    category: IRREGULAR
+    priority: CRITICAL
+
+  - id: TRM-0072
+    term_tr: "yeniden rezervasyon"
+    term_en: "rebooking"
+    canonical: true
+    context_tags: [IRREGULAR]
+    forbidden_alternatives: ["rescheduling", "re-reservation"]
+    category: IRREGULAR
+    priority: HIGH
+
+  - id: TRM-0073
+    term_tr: "konaklama"
+    term_en: "accommodation"
+    canonical: true
+    context_tags: [IRREGULAR]
+    forbidden_alternatives: ["hotel", "lodging"]
+    category: IRREGULAR
+    priority: HIGH
+
+  - id: TRM-0074
+    term_tr: "yemek kuponu"
+    term_en: "meal voucher"
+    canonical: true
+    context_tags: [IRREGULAR]
+    forbidden_alternatives: ["food coupon", "food voucher"]
+    category: IRREGULAR
+    priority: MEDIUM
+
+  # ============================================================
+  # DIRECTIONS
+  # ============================================================
+  - id: TRM-0080
+    term_tr: "sol"
+    term_en: "left"
+    canonical: true
+    context_tags: [DIRECTIONS]
+    forbidden_alternatives: []
+    category: DIRECTIONS
+    priority: HIGH
+
+  - id: TRM-0081
+    term_tr: "sağ"
+    term_en: "right"
+    canonical: true
+    context_tags: [DIRECTIONS]
+    forbidden_alternatives: []
+    category: DIRECTIONS
+    priority: HIGH
+
+  - id: TRM-0082
+    term_tr: "düz"
+    term_en: "straight ahead"
+    canonical: true
+    context_tags: [DIRECTIONS]
+    forbidden_alternatives: ["straight", "forward"]
+    category: DIRECTIONS
+    priority: MEDIUM
+
+  - id: TRM-0083
+    term_tr: "asansör"
+    term_en: "elevator"
+    canonical: true
+    context_tags: [DIRECTIONS]
+    forbidden_alternatives: ["lift"]
+    category: DIRECTIONS
+    priority: MEDIUM
+
+  - id: TRM-0084
+    term_tr: "yürüyen merdiven"
+    term_en: "escalator"
+    canonical: true
+    context_tags: [DIRECTIONS]
+    forbidden_alternatives: ["moving stairs"]
+    category: DIRECTIONS
+    priority: MEDIUM
+
+  - id: TRM-0085
+    term_tr: "servis aracı"
+    term_en: "shuttle"
+    canonical: true
+    context_tags: [DIRECTIONS, TRANSFER]
+    forbidden_alternatives: ["bus", "transport"]
+    category: DIRECTIONS
+    priority: MEDIUM
+
+  # ============================================================
+  # EMERGENCY
+  # ============================================================
+  - id: TRM-0090
+    term_tr: "tahliye"
+    term_en: "evacuation"
+    canonical: true
+    context_tags: [EMERGENCY]
+    forbidden_alternatives: ["clearing", "emptying"]
+    category: EMERGENCY
+    priority: CRITICAL
+
+  - id: TRM-0091
+    term_tr: "toplanma noktası"
+    term_en: "assembly point"
+    canonical: true
+    context_tags: [EMERGENCY]
+    forbidden_alternatives: ["meeting point", "gathering point"]
+    category: EMERGENCY
+    priority: CRITICAL
+
+  - id: TRM-0092
+    term_tr: "acil çıkış"
+    term_en: "emergency exit"
+    canonical: true
+    context_tags: [EMERGENCY]
+    forbidden_alternatives: ["fire exit"]
+    category: EMERGENCY
+    priority: CRITICAL
+
+  # ============================================================
+  # PASSENGER & GENERAL
+  # ============================================================
+  - id: TRM-0100
+    term_tr: "yolcu"
+    term_en: "passenger"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING, GATE, TRANSFER, BAGGAGE, SECURITY]
+    forbidden_alternatives: ["traveler", "customer", "client"]
+    category: GENERAL
+    priority: CRITICAL
+
+  - id: TRM-0101
+    term_tr: "lütfen"
+    term_en: "please"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING, GATE, TRANSFER, BAGGAGE, SECURITY, DIRECTIONS]
+    forbidden_alternatives: []
+    category: GENERAL
+    priority: MEDIUM
+
+  - id: TRM-0102
+    term_tr: "bekleyin"
+    term_en: "please wait"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING, GATE, SECURITY]
+    forbidden_alternatives: ["hold on", "wait"]
+    category: GENERAL
+    priority: MEDIUM
+
+  - id: TRM-0103
+    term_tr: "takip edin"
+    term_en: "follow me"
+    canonical: true
+    context_tags: [DIRECTIONS, TRANSFER]
+    forbidden_alternatives: ["come with me"]
+    category: GENERAL
+    priority: MEDIUM
+
+  - id: TRM-0104
+    term_tr: "buradan devam edin"
+    term_en: "proceed this way"
+    canonical: true
+    context_tags: [DIRECTIONS, SECURITY, TRANSFER]
+    forbidden_alternatives: ["go this way", "continue here"]
+    category: GENERAL
+    priority: MEDIUM
+
+  # ============================================================
+  # PASSPORT CONTROL
+  # ============================================================
+  - id: TRM-0110
+    term_tr: "pasaport kontrolü"
+    term_en: "passport control"
+    canonical: true
+    context_tags: [PASSPORT, DIRECTIONS]
+    forbidden_alternatives: ["passport check", "immigration"]
+    category: PASSPORT
+    priority: CRITICAL
+
+  - id: TRM-0111
+    term_tr: "giriş damgası"
+    term_en: "entry stamp"
+    canonical: true
+    context_tags: [PASSPORT]
+    forbidden_alternatives: ["stamp"]
+    category: PASSPORT
+    priority: HIGH
+
+  - id: TRM-0112
+    term_tr: "çıkış damgası"
+    term_en: "exit stamp"
+    canonical: true
+    context_tags: [PASSPORT]
+    forbidden_alternatives: ["stamp"]
+    category: PASSPORT
+    priority: HIGH
+
+  # ============================================================
+  # ADDITIONAL HIGH-FREQUENCY TERMS
+  # ============================================================
+  - id: TRM-0120
+    term_tr: "uçak"
+    term_en: "aircraft"
+    canonical: true
+    context_tags: [BOARDING, GATE, DELAY]
+    forbidden_alternatives: ["plane", "airplane"]
+    category: FLIGHT
+    priority: HIGH
+
+  - id: TRM-0121
+    term_tr: "pist"
+    term_en: "runway"
+    canonical: true
+    context_tags: [DELAY]
+    forbidden_alternatives: ["airstrip"]
+    category: FLIGHT
+    priority: HIGH
+
+  - id: TRM-0122
+    term_tr: "apron"
+    term_en: "apron"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["tarmac", "ramp"]
+    category: FLIGHT
+    priority: HIGH
+
+  - id: TRM-0123
+    term_tr: "otobüsle biniş"
+    term_en: "bus boarding"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["remote boarding"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0124
+    term_tr: "öncelikli biniş"
+    term_en: "priority boarding"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["early boarding", "first boarding"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0125
+    term_tr: "iş sınıfı"
+    term_en: "business class"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING]
+    forbidden_alternatives: ["business"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0126
+    term_tr: "ekonomi sınıfı"
+    term_en: "economy class"
+    canonical: true
+    context_tags: [CHECK_IN, BOARDING]
+    forbidden_alternatives: ["economy", "coach"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0127
+    term_tr: "sıra numarası"
+    term_en: "row number"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: []
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0128
+    term_tr: "üst dolap"
+    term_en: "overhead bin"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["overhead compartment", "overhead locker", "luggage rack"]
+    category: BOARDING
+    priority: HIGH
+
+  - id: TRM-0129
+    term_tr: "emniyet kemeri"
+    term_en: "seatbelt"
+    canonical: true
+    context_tags: [BOARDING]
+    forbidden_alternatives: ["safety belt", "seat belt"]
+    category: BOARDING
+    priority: HIGH
