@@ -72,7 +72,7 @@ export function TranslationDisplay({ result, loading, sourceText, onPlayTTS, str
           <span>{result.model_used}</span>
           <span className="text-border">·</span>
           <span>{result.glossary_terms_injected} glossary terms</span>
-          {result.notes.length > 0 && <><span className="text-border">·</span><span className="text-warning font-medium">{result.notes.length} note{result.notes.length > 1 ? 's' : ''}</span></>}
+          {(result.notes?.length ?? 0) > 0 && <><span className="text-border">·</span><span className="text-warning font-medium">{result.notes.length} note{result.notes.length > 1 ? 's' : ''}</span></>}
         </motion.div>
       )}
     </div>

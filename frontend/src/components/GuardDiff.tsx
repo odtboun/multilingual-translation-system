@@ -5,7 +5,7 @@ import type { GuardCorrection } from '../types';
 
 interface GuardDiffProps { corrections: GuardCorrection[]; }
 
-export function GuardDiff({ corrections }: GuardDiffProps) {
+export function GuardDiff({ corrections = [] }: GuardDiffProps) {
   const [expanded, setExpanded] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 

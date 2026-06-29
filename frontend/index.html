@@ -8,6 +8,9 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      fetch("https://aviation-translation-api.onrender.com/api/debug/health").catch(()=>console.log("wakeup"));
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
