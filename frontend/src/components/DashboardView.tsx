@@ -17,6 +17,8 @@ function StatCard({ icon, label, value, subtitle, accent = 'aviation', loading }
   );
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+
 export function DashboardView() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [error, setError] = useState(false);
@@ -24,16 +26,18 @@ export function DashboardView() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const r = await fetch('/api/debug/health'); if (!r.ok) throw new Error('');
+        const r = await fetch(`${API_BASE}/debug/health`);
+        if (!r.ok) throw new Error('');
         const d = await r.json();
         setMetrics({ total_translations: d.glossary_terms || 0, guard_interventions: 0, guard_rate: '0%', avg_latency_ms: 0, latency_p95_ms: 0, cache_hit_rate: '0%', uptime_seconds: 0, by_touchpoint: {} });
+        setError(false);
       } catch { setError(true); }
     };
     fetchMetrics(); const i = setInterval(fetchMetrics, 5000); return () => clearInterval(i);
   }, []);
 
   const loading = !metrics && !error;
-  const empty = metrics && metrics.total_translations === 0;
+  const empty = !metrics || metrics.total_translations === 0;
 
   return (
     <div className="h-full overflow-y-auto">

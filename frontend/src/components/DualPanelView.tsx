@@ -126,7 +126,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
               <div className="flex items-center justify-center h-full text-text-tertiary text-xs">—</div>
             ) : turns.map(t => {
               const speaker = getSpeaker(t.sourceLang);
-              const textInLangA = t.sourceLang === langA ? t.sourceText : (t.result?.translation || '');
+              const textInLangA = speaker === 'A' ? t.sourceText : (t.result?.translation || '');
               if (!textInLangA && t.loading) return null;
               return <PanelRow key={t.id} text={textInLangA || '...'} speaker={speaker} />;
             })}
@@ -141,7 +141,7 @@ export function DualPanelView({ onMetrics }: { onMetrics: (m: { count: number; l
               <div className="flex items-center justify-center h-full text-text-tertiary text-xs">—</div>
             ) : turns.map(t => {
               const speaker = getSpeaker(t.sourceLang);
-              const textInLangB = t.sourceLang === langB ? t.sourceText : (t.result?.translation || '');
+              const textInLangB = speaker === 'B' ? t.sourceText : (t.result?.translation || '');
               if (!textInLangB && t.loading) return null;
               return <PanelRow key={t.id} text={textInLangB || '...'} speaker={speaker} />;
             })}
